@@ -1,0 +1,44 @@
+<div id="colorSettingsMenu" class="color-settings-menu">
+    <div class="color-settings-header">
+        <h3>JSON Color Settings</h3>
+    </div>
+    <div class="color-settings-body">
+        <div class="color-setting-group">
+            <label for="jsonProperty">Property Names:</label>
+            <input type="color" id="jsonProperty" data-target="--json-property">
+        </div>
+        <div class="color-setting-group">
+            <label for="jsonString">String Values:</label>
+            <input type="color" id="jsonString" data-target="--json-string">
+        </div>
+        <div class="color-setting-group">
+            <label for="jsonNumber">Numbers:</label>
+            <input type="color" id="jsonNumber" data-target="--json-number">
+        </div>
+        <div class="color-setting-group">
+            <label for="jsonBoolean">Booleans:</label>
+            <input type="color" id="jsonBoolean" data-target="--json-boolean">
+        </div>
+        <div class="color-setting-group">
+            <label for="jsonNull">Null Values:</label>
+            <input type="color" id="jsonNull" data-target="--json-null">
+        </div>
+        <div class="color-setting-group">
+            <label for="jsonPunctuation">Punctuation:</label>
+            <input type="color" id="jsonPunctuation" data-target="--json-punctuation">
+        </div>
+    </div>
+    <div class="color-settings-footer">
+        <button id="resetColors" class="method-button delete-button">Reset to Default</button>
+        <button id="saveColors" class="method-button patch-button">Save Colors</button>
+    </div>
+</div>
+
+<script>
+    // Initialize color settings when the page loads
+    document.addEventListener('DOMContentLoaded', function() {
+        if (typeof window.initColorSettings === 'function') {
+            window.initColorSettings();
+        }
+    });
+</script>

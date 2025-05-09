@@ -1,0 +1,16 @@
+/* Custom syntax highlighting colors */
+.hljs-custom {
+  --json-property: #986801;
+  --json-string: #50a14f;
+  --json-number: #4078f2;
+  --json-boolean: #aa17e6;
+  --json-null: #e45649;
+  --json-punctuation: #383a42;
+}
+
+.hljs-custom .hljs-attr { color: var(--json-property); }
+.hljs-custom .hljs-string { color: var(--json-string); }
+.hljs-custom .hljs-number { color: var(--json-number); }
+.hljs-custom .hljs-literal { color: var(--json-boolean); }
+.hljs-custom .hljs-keyword { color: var(--json-null); }
+.hljs-custom .hljs-punctuation { color: var(--json-punctuation); }

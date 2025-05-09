@@ -1,0 +1,65 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: nginx-proxy-config
+  namespace: default
+data:
+  default.conf: |
+    server {
+        listen 80;
+        server_name _;
+
+        # Set proper MIME types, especially for JavaScript files
+        include /etc/nginx/mime.types;
+        # No need to redefine types that are already in mime.types
+        # Removing the duplicate definitions that caused warnings
+
+        # Serve static files
+        location / {
+            root /usr/share/nginx/html;
+            index index.html;
+            try_files $uri $uri/ /index.html;
+            
+            # Add security headers
+            add_header X-Content-Type-Options "nosniff";
+            add_header X-Frame-Options "SAMEORIGIN";
+            add_header X-XSS-Protection "1; mode=block";
+            
+            # Enable compression for text-based files
+            gzip on;
+            gzip_types text/plain text/css application/javascript application/json application/ld+json;
+        }
+
+        # Proxy API requests to Orion-LD
+        location /api/ngsi-ld/v1/ {
+            proxy_pass http://orion.sensorsreport.net:31026/ngsi-ld/v1/;
+            proxy_set_header Host $host;
+            proxy_set_header X-Real-IP $remote_addr;
+            proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+            proxy_set_header X-Forwarded-Proto $scheme;
+            proxy_http_version 1.1;
+            proxy_buffering off;
+            proxy_read_timeout 120s;
+        }
+
+        # Optional: Proxy for context files
+        location /context/ {
+            proxy_pass http://ngsi-ld.sensorsreport.net/;
+            proxy_set_header Host ngsi-ld.sensorsreport.net;
+            proxy_set_header X-Real-IP $remote_addr;
+            proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        }
+
+        # Proxy to Keycloak server
+        location /api/auth/ {
+            proxy_pass https://keycloak.sensorsreport.net/;
+            proxy_set_header Host keycloak.sensorsreport.net;
+            proxy_set_header X-Real-IP $remote_addr;
+            proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+            proxy_set_header X-Forwarded-Proto $scheme;
+            proxy_http_version 1.1;
+            proxy_set_header Upgrade $http_upgrade;
+            proxy_set_header Connection "upgrade";
+            proxy_read_timeout 90s;
+        }
+    }

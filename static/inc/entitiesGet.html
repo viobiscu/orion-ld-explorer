@@ -1,0 +1,72 @@
+
+<table>
+    <thead>
+      <tr>
+        <th>Parameter</th>
+        <th>Input Example</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td>id</td>
+        <td><input type="text" class="input-box" placeholder="?id=urn:ngsi-ld:Entity:001" value="?id=urn:ngsi-ld:????" title="Filter by specific entity IDs">
+          <button class="method-button get-button" onclick="handleGetQuery(this.previousElementSibling.value)">GET</button>
+        </td>
+      </tr>
+      <tr>
+        <td>idPattern</td>
+        <td><input type="text" class="input-box" placeholder="?idPattern=^urn:ngsi-ld:Entity.*" value="?idPattern=^urn:ngsi-ld:Entity.*" title="Regex pattern matching entity IDs">
+          <button class="method-button get-button" onclick="handleGetQuery(this.previousElementSibling.value)">GET</button>
+        </td>
+      </tr>
+      <tr>
+        <td>type</td>
+        <td><input type="text" class="input-box" placeholder="?type=Device" value="?type=???" title="Filter entities by their type(s)">
+          <button class="method-button get-button" onclick="handleGetQuery(this.previousElementSibling.value)">GET</button>
+        </td>
+      </tr>
+      <tr>
+        <td>attrs</td>
+        <td><input type="text" class="input-box" placeholder="?attrs=temperature,humidity" value="/urn:ngsi-ld:Entity:001?attrs=t0,rh0" title="Attributes to include in the response">
+          <button class="method-button get-button" onclick="handleGetQuery(this.previousElementSibling.value)">GET</button>
+        </td>
+      </tr>
+      <tr>
+        <td>q</td>
+        <td><input type="text" class="input-box" placeholder="?q=t0>20" title="Query condition">
+          <button class="method-button get-button" onclick="handleGetQuery(this.previousElementSibling.value)">GET</button>
+        </td>
+      </tr>
+      <tr>
+        <td>limit</td>
+        <td><input type="text" class="input-box" placeholder="?limit=10" title="Limit number of results">
+          <button class="method-button get-button" onclick="handleGetQuery(this.previousElementSibling.value)">GET</button>
+        </td>
+      </tr>
+      <tr>
+        <td>offset</td>
+        <td><input type="text" class="input-box" placeholder="?offset=5" title="Pagination offset">
+          <button class="method-button get-button" onclick="handleGetQuery(this.previousElementSibling.value)">GET</button>
+        </td>
+      </tr>
+      <tr>
+        <td>options</td>
+        <td><input type="text" class="input-box" placeholder="?options=keyValues" title="Response options">
+          <button class="method-button get-button" onclick="handleGetQuery(this.previousElementSibling.value)">GET</button>
+        </td>
+      </tr>
+      <tr>
+        <td>format</td>
+        <td><input type="text" class="input-box" placeholder="?format=geojson" title="Output format">
+          <button class="method-button get-button" onclick="handleGetQuery(this.previousElementSibling.value)">GET</button>
+        </td>
+      </tr>
+      <tr>
+        <td>count</td>
+        <td><input type="text" class="input-box" placeholder="?count=true" title="Include count">
+          <button class="method-button get-button" onclick="handleGetQuery(this.previousElementSibling.value)">GET</button>
+        </td>
+      </tr>
+    </tbody>
+  </table>
+

@@ -1,0 +1,34 @@
+{
+  "id": "dp-test-001",
+  "name": "Test Data Product",
+  "description": "This is a test data product created via curl",
+  "version": "1.0.0",
+  "owner": "test-user",
+  "createdAt": "2025-05-09T12:00:00Z",
+  "updatedAt": "2025-05-09T12:00:00Z",
+  "status": "active",
+  "dataSchema": {
+    "type": "object",
+    "properties": {
+      "temperature": {
+        "type": "number",
+        "description": "Temperature value in Celsius"
+      },
+      "humidity": {
+        "type": "number",
+        "description": "Humidity percentage"
+      },
+      "timestamp": {
+        "type": "string",
+        "format": "date-time",
+        "description": "Measurement timestamp"
+      }
+    },
+    "required": ["temperature", "humidity", "timestamp"]
+  },
+  "tags": ["test", "example", "curl"],
+  "accessControl": {
+    "readAccess": ["public"],
+    "writeAccess": ["owner", "admin"]
+  }
+}

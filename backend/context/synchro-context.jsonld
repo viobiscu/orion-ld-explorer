@@ -1,0 +1,16 @@
+{
+  "@context": {
+    "ngsi-ld": "https://uri.etsi.org/ngsi-ld/",
+    "id": "@id",
+    "type": "@type",
+    "value": "https://uri.etsi.org/ngsi-ld/hasValue",
+    "object": "https://uri.etsi.org/ngsi-ld/hasObject",
+    "Property": "https://uri.etsi.org/ngsi-ld/Property",
+    "Relationship": "https://uri.etsi.org/ngsi-ld/Relationship",
+    "time": "https://uri.etsi.org/ngsi-ld/time",
+    "location": "https://uri.etsi.org/ngsi-ld/location",
+    "createdAt": "https://uri.etsi.org/ngsi-ld/createdAt",
+    "modifiedAt": "https://uri.etsi.org/ngsi-ld/modifiedAt",
+    "observedAt": "https://uri.etsi.org/ngsi-ld/observedAt"
+  }
+}

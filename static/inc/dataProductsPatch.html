@@ -1,0 +1,25 @@
+<div class="form-container">
+  <div class="form-header">
+    <h2>Update Data Product</h2>
+    <button class="method-button patch-button" onclick="updateDataProduct(document.getElementById('dataProductIdInput').value, document.getElementById('dataProductUpdateInput').value)">PATCH</button>
+  </div>
+  <div class="form-body">
+    <div class="input-group">
+      <label for="dataProductIdInput">Data Product ID:</label>
+      <input type="text" id="dataProductIdInput" placeholder="Enter Data Product ID" style="width: 100%;">
+    </div>
+    <textarea id="dataProductUpdateInput" class="textarea" style="width: 100%; height: 450px; resize: both; overflow: auto; margin-top: 10px;">
+{
+  "name": "Updated Data Product Name",
+  "description": "This description has been updated",
+  "version": "1.0.1",
+  "updatedAt": "2025-05-09T14:30:00Z",
+  "status": "updated",
+  "tags": ["environment", "sensors", "temperature", "updated"]
+}
+    </textarea>
+  </div>
+  <div class="form-footer">
+    <small>This form updates an existing Data Product in the system.</small>
+  </div>
+</div>

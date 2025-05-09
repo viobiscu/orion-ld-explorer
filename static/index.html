@@ -1,0 +1,267 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8"/>
+    <title>Orion-LD Explorer - SensorsReport</title>
+    <link href="favicon.ico" type="image/x-icon" rel="icon"/>
+    <link href="css/style.css" rel="stylesheet"/>
+    
+    <!-- Use locally hosted Font Awesome instead of CDN -->
+    <link href="fonts/fontawesome/css/all.min.css" rel="stylesheet"/>
+    
+    <!-- Add highlight.js CSS and JS -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.8.0/styles/default.min.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.8.0/highlight.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.8.0/languages/json.min.js"></script>
+    
+    <link href="css/custom-highlight.css" rel="stylesheet"/>
+    
+    <script>
+        // Create functions that will be needed by modules before they load
+        window.passwordVisibility = {
+            togglePasswordVisibility: function(fieldId) {
+                const input = document.getElementById(fieldId);
+                if (input) {
+                    input.type = input.type === "password" ? "text" : "password";
+                }
+            }
+        };
+        
+        window.authChecker = {
+            checkAuthentication: function() {
+                // This will be replaced by the proper implementation once modules load
+                return true;
+            }
+        };
+
+        function handleEntityGet(url) {
+            // Save current content if switching to color settings
+            if (url === 'inc/colorSettings.html') {
+                const displayArea = document.getElementById('displayArea');
+                if (displayArea) {
+                    localStorage.setItem('previousContent', displayArea.innerHTML);
+                }
+            }
+            
+            fetch(url)
+                .then(response => response.text())
+                .then(data => document.getElementById('displayArea').innerHTML = data);
+        }
+    </script>
+    
+    <!-- Load our scripts with defer attribute and module type -->
+    <script src="js/auth-backend.js" type="module" defer></script>
+    <script src="js/ui.js" type="module" defer></script>
+    <script src="js/api.js" type="module" defer></script>
+    <script src="js/AppInitializer.js" type="module" defer></script>
+    <script src="js/colorSettings.js" type="module" defer></script>
+    
+    <!-- Added styles for json-editor -->
+    <style>
+      #jsonDisplay {
+        width: 100%;
+        height: 500px;
+        margin: 0;
+        overflow: auto;
+      }
+      
+      /* Hide Subscriptions section */
+      .hide-subscriptions {
+        display: none !important;
+      }
+      
+      /* Fallback for Font Awesome icons if they fail to load */
+      .icon-fallback-text {
+        display: inline-block;
+        margin-right: 5px;
+      }
+      
+      /* Error message styling */
+      .network-error {
+        background-color: #fff3cd;
+        color: #856404;
+        padding: 10px;
+        margin: 10px 0;
+        border-radius: 5px;
+        border: 1px solid #ffeeba;
+      }
+    </style>
+</head>
+<body>
+    <!-- Add login form section before the main content -->
+    <div id="loginFormContainer" class="login-container" style="display: none;">
+      <div class="login-form">
+        <h2>Login to SensorsReport</h2>
+        <form id="loginForm">
+          <div class="form-group">
+            <label for="username">Username</label>
+            <input type="text" id="username" name="username" required>
+          </div>
+          <div class="form-group">
+            <label for="password">Password</label>
+            <input type="password" id="password" name="password" required>
+          </div>
+          <div class="form-group">
+            <button type="submit" id="loginSubmit">Login</button>
+          </div>
+          <div id="loginError" class="error-message" style="display: none;"></div>
+        </form>
+      </div>
+    </div>
+
+    <!-- Header Section -->
+    <header id="top-header">
+        <div class="branding">
+            <img alt="SensorsReport Logo" id="brandLogo" src="images/SensorsReport.jpg" loading="lazy"/>
+        </div>
+        <div class="user-info">
+            <span id="loginUser">User: Not logged in</span>
+            <span id="tenantName">Tenant:</span>
+            <input id="tenantname" placeholder="tenantname" type="text"/>
+            <button id="showTokenButton" class="method-button patch-button">Show Token</button>
+            <button id="logoutButton" class="method-button delete-button">Logout</button>
+        </div>
+    </header>
+
+    <!-- Main Container -->
+    <div id="main-container">
+        <!-- Sidebar Navigation -->
+        <aside id="sidebar">
+            <ul class="treeview">
+                <li class="treeview-item expandable">
+                    <i class="fa-regular fa-folder-closed custom-icon"></i><span>Entities</span>
+                </li>
+                <ul class="nested">
+                    <li>
+                        <i class="fa-regular fa-file custom-icon"></i><span>Entities</span>
+                        <button class="method-button get-button" onclick="handleEntityGet('inc/entitiesGet.html')">GET</button>
+                    </li>
+                    <li>
+                        <i class="fa-regular fa-file custom-icon"></i><span>Entities</span>
+                        <button class="method-button post-button" onclick="handleEntityGet('inc/entitiesPost.html')">POST</button>
+                    </li>
+                    <li>
+                        <i class="fa-regular fa-file custom-icon"></i><span>Entities</span>
+                        <button class="method-button get-button" onclick="processGetData('/entities{entityId}', '/urn:ngsi-ld:???')">GET</button>
+                    </li>
+                    <li>
+                        <i class="fa-regular fa-file custom-icon"></i><span>Entities</span>
+                        <button class="method-button put-button" onclick="handleEntityGet('inc/entitiesPut.html')">PUT</button>
+                    </li>
+                    <li>
+                        <i class="fa-regular fa-file custom-icon"></i><span>Entities</span>
+                        <button class="method-button patch-button" onclick="handleEntityGet('inc/entitiesPatch.html')">PATCH</button>
+                    </li>
+                    <li>
+                        <i class="fa-regular fa-file custom-icon"></i><span>Entities</span>
+                        <button class="method-button delete-button" onclick="processDeleteData('/entities{entityId}', '/urn:ngsi-ld:???')">DELETE</button>
+                    </li>
+                    <li class="treeview-item expandable">
+                        <i class="fa-regular fa-folder-closed custom-icon"></i><span>By Type</span>
+                    </li>
+                    <ul class="nested" id="entity-types-list">
+                        <li>
+                            <i class="fa-regular fa-file custom-icon"></i><span>Loading types...</span>
+                        </li>
+                    </ul>
+                </ul>
+
+                <li class="treeview-item expandable">
+                    <i class="fa-regular fa-folder-closed custom-icon"></i><span>Attributes</span>
+                </li>
+                <ul class="nested">
+                    <li>
+                        <i class="fa-regular fa-file custom-icon"></i><span>Attributes</span>
+                        <button class="method-button get-button" onclick="processGetData('/attributes{attributeId}', '/urn:ngsi-ld:???')">GET</button>
+                    </li>
+                    <li>
+                        <i class="fa-regular fa-file custom-icon"></i><span>Attributes</span>
+                        <button class="method-button patch-button" onclick="handleEntityGet('inc/attributesPatch.html')">PATCH</button>
+                    </li>
+                    <li>
+                        <i class="fa-regular fa-file custom-icon"></i><span>Attributes</span>
+                        <button class="method-button delete-button" onclick="processDeleteData('/attributes', '/urn:ngsi-ld:???')">DELETE</button>
+                    </li>
+                </ul>
+
+                <li class="treeview-item expandable">
+                    <i class="fa-regular fa-folder-closed custom-icon"></i><span>Data Products</span>
+                </li>
+                <ul class="nested">
+                    <li>
+                        <i class="fa-regular fa-file custom-icon"></i><span>Data Products</span>
+                        <button class="method-button get-button" onclick="handleEntityGet('inc/dataProductsGet.html')">GET</button>
+                    </li>
+                    <li>
+                        <i class="fa-regular fa-file custom-icon"></i><span>Data Products</span>
+                        <button class="method-button post-button" onclick="handleEntityGet('inc/dataProductsPost.html')">POST</button>
+                    </li>
+                    <li>
+                        <i class="fa-regular fa-file custom-icon"></i><span>Data Products</span>
+                        <button class="method-button patch-button" onclick="handleEntityGet('inc/dataProductsPatch.html')">PATCH</button>
+                    </li>
+                    <li>
+                        <i class="fa-regular fa-file custom-icon"></i><span>Data Products</span>
+                        <button class="method-button delete-button" onclick="handleEntityGet('inc/dataProductsDelete.html')">DELETE</button>
+                    </li>
+                </ul>
+
+                <li class="treeview-item expandable">
+                    <i class="fa-regular fa-folder-closed custom-icon"></i><span>Relationships</span>
+                </li>
+                <ul class="nested">
+                    <li>
+                        <i class="fa-regular fa-file custom-icon"></i><span>Get my Parents</span>
+                        <button class="method-button get-button" onclick="processGetData('/relationships{relationshipId}', '/urn:ngsi-ld:???')">GET</button>
+                    </li>
+                    <li>
+                        <i class="fa-regular fa-file custom-icon"></i><span>Get my Kids</span>
+                        <button class="method-button get-button" onclick="processGetData('/relationships{relationshipId}', '/urn:ngsi-ld:???')">GET</button>
+                    </li>
+                    <li>
+                        <i class="fa-regular fa-file custom-icon"></i><span>Relationships</span>
+                        <button class="method-button patch-button" onclick="handleEntityGet('inc/relationshipsPatch.html')">PATCH</button>
+                    </li>
+                    <li>
+                        <i class="fa-regular fa-file custom-icon"></i><span>Relationships</span>
+                        <button class="method-button delete-button" onclick="processDeleteData('/relationships{relationshipId}', '/urn:ngsi-ld:???')">DELETE</button>
+                    </li>
+                </ul>
+
+                <li class="treeview-item">
+                    <i class="fa-regular fa-file custom-icon"></i>
+                    <span onclick="handleEntityGet('inc/queue.html')">Queues</span>
+                </li>
+                <li class="treeview-item">
+                    <i class="fa-regular fa-file custom-icon"></i>
+                    <span onclick="handleEntityGet('inc/resources.html')">Reference</span>
+                </li>
+                <li class="treeview-item">
+                    <i class="fa-regular fa-palette custom-icon"></i>
+                    <span onclick="handleEntityGet('inc/colorSettings.html')">Color Settings</span>
+                </li>
+            </ul>
+        </aside>
+
+        <!-- Resizer bar -->
+        <div id="resizer"></div>
+
+        <!-- Content Area -->
+        <main id="contentArea">
+            <div id="displayArea">
+                <textarea id="jsonDisplay" style="width:100%; height:500px;" placeholder="JSON will appear here..."></textarea>
+            </div>
+            <div id="fallbackUI"></div>
+            <!-- Logs Section -->
+            <div id="logs-container">
+                <button class="method-button delete-button" id="clearLogsBtn">Clear Logs</button>
+                <button class="method-button patch-button" id="toggleLogsBtn">Hide Logs</button>
+                <div id="request-logs">
+                    <p class="log-placeholder">Logs will appear here...</p>
+                </div>
+            </div>
+        </main>
+    </div>
+</body>
+
+</html>

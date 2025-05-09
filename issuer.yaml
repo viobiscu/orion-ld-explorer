@@ -1,0 +1,19 @@
+apiVersion: cert-manager.io/v1
+kind: Issuer
+metadata:
+  name: letsencrypt-prod
+  namespace: default
+spec:
+  acme:
+    email: vio@synchro.ro
+    server: https://acme-v02.api.letsencrypt.org/directory
+    privateKeySecretRef:
+      name: letsencrypt-prod-private-key
+    solvers:
+    - dns01:
+        cloudflare:
+          email: vio@synchro.ro
+          apiTokenSecretRef:
+            name: cloudflare-api-token-secret
+            key: api-token
+

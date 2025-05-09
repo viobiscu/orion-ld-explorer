@@ -1,0 +1,47 @@
+<div class="form-container">
+  <div class="form-header">
+    <h2>Create Data Product</h2>
+    <button class="method-button post-button" onclick="createDataProduct(document.getElementById('dataProductJsonInput').value)">POST</button>
+  </div>
+  <div class="form-body">
+    <textarea id="dataProductJsonInput" class="textarea" style="width: 100%; height: 500px; resize: both; overflow: auto;">
+{
+  "id": "dp-example-001",
+  "name": "Example Data Product",
+  "description": "This is a sample data product for demonstration",
+  "version": "1.0.0",
+  "owner": "example-user",
+  "createdAt": "2025-05-09T10:00:00Z",
+  "updatedAt": "2025-05-09T10:00:00Z",
+  "status": "active",
+  "dataSchema": {
+    "type": "object",
+    "properties": {
+      "temperature": {
+        "type": "number",
+        "description": "Temperature value in Celsius"
+      },
+      "humidity": {
+        "type": "number",
+        "description": "Humidity percentage"
+      },
+      "timestamp": {
+        "type": "string",
+        "format": "date-time",
+        "description": "Measurement timestamp"
+      }
+    },
+    "required": ["temperature", "humidity", "timestamp"]
+  },
+  "tags": ["environment", "sensors", "temperature"],
+  "accessControl": {
+    "readAccess": ["public"],
+    "writeAccess": ["owner", "admin"]
+  }
+}
+    </textarea>
+  </div>
+  <div class="form-footer">
+    <small>This form creates a new Data Product in the system.</small>
+  </div>
+</div>

@@ -1,0 +1,372 @@
+/* css/style.css */
+
+/* Global resets/typography */
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+body {
+  font-family: Arial, sans-serif;
+  background-color: #f5f5f5;
+  height: 100vh;
+}
+
+/* Top Header */
+#top-header {
+  background-color: #333;
+  color: #fff;
+  display: flex;
+  align-items: center;
+  padding: 10px 20px;
+  justify-content: space-between;
+}
+
+/* Brand/logo area */
+.branding {
+  display: flex;
+  align-items: center;
+}
+#brandLogo {
+  height: 40px; /* Adjust as desired */
+  margin-right: 5px;
+}
+
+/* User info + logout button */
+.user-info {
+  display: flex;
+  align-items: center;
+}
+.user-info span {
+  margin-right: 15px;
+  font-weight: bold;
+}
+#loginUser, #tenantName {
+  background-color: rgba(255, 255, 255, 0.1);
+  padding: 5px 10px;
+  border-radius: 4px;
+  min-width: 120px;
+}
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+  font-family: Arial, sans-serif;
+}
+th, td {
+  border: 1px solid #ddd;
+  padding: 8px;
+}
+th {
+  background-color: #4CAF50;
+  color: white;
+}
+
+/* Main Container splits the window into left and right */
+#main-container {
+  display: flex;
+  height: calc(100vh - 60px); /* Adjust according to your header height */
+  position: relative;
+}
+
+/* Sidebar (Left) */
+#sidebar {
+  width: 220px;
+  min-width: 100px;
+  background-color: #2c3e50;
+  color: #ecf0f1;
+  overflow-y: auto;
+  padding-top: 20px;
+  transition: width 0.1s ease;
+}
+
+/* Resizer bar */
+#resizer {
+  width: 8px;
+  background-color: #ccc;
+  cursor: col-resize;
+  position: relative;
+  z-index: 10;
+}
+
+#resizer:hover, 
+#resizer.active {
+  background-color: #999;
+}
+
+/* Content area (Right) */
+#contentArea {
+  flex-grow: 1;
+  padding: 20px;
+  background-color: #fff;
+  overflow-y: auto;
+}
+
+.textarea {
+  width: 100%;
+  height: 100%;
+  padding: 20px;
+  background-color: #fff;
+  border-radius: 5px;
+  box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+}
+
+/* Simple treeview menu styling */
+.treeview {
+  list-style: none;
+  padding-left: 0;
+}
+.treeview-item {
+  display: flex;
+  align-items: center;
+  padding: 10px 20px;
+  cursor: pointer;
+  transition: background-color 0.3s;
+}
+.treeview-item:hover,
+.treeview-item.active {
+  background-color: #34495e;
+}
+.menu-icon {
+  width: 24px;
+  height: 24px;
+  margin-right: 10px;
+}
+
+/* JSON display area */
+#displayArea {
+  background-color: #f7f7f7;
+  border: 1px solid #ccc;
+  padding: 10px;
+  border-radius: 5px;
+  transition: opacity 0.3s ease-in-out;
+}
+
+#displayArea.transitioning {
+  opacity: 0;
+}
+
+pre#jsonDisplay {
+  white-space: pre-wrap;
+  word-wrap: break-word;
+}
+.treeview {
+  list-style-type: none;
+  padding-left: 0;
+}
+
+.treeview-item {
+  cursor: pointer;
+  user-select: none;
+  padding: 5px;
+  display: flex;
+  align-items: center;
+}
+
+.menu-icon {
+  width: 16px;
+  height: 16px;
+  margin-right: 8px;
+}
+
+.nested {
+  list-style-type: none;
+  display: none;
+  padding-left: 24px;
+}
+
+.nested li {
+  padding: 4px 0;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+}
+
+/* Show nested list when JS adds .visible */
+.nested.visible {
+  display: block;
+}
+
+.method-button {
+  padding: 2px 8px;
+  margin-left: 8px;
+  font-size: 12px;
+  border: none;
+  border-radius: 4px;
+  color: white;
+  cursor: pointer;
+}
+
+.get-button { background-color: #28a745; }
+.post-button { background-color: #007bff; }
+.patch-button { background-color: #ffc107; }
+.delete-button { background-color: #dc3545; }
+.put-button { background-color: #17a2b8; }
+.options-button { background-color: #6c757d; }
+.logout-button { background-color: #dc3545; }
+.logout-button:hover { background-color: #c82333; }
+.input-box {
+  margin-left: 8px;
+  padding: 2px;
+  border-radius: 4px;
+  border: 1px solid #ccc;
+  width: 250px;
+}
+.input-box:focus {
+  outline: none;
+  border-color: #007bff;
+}
+
+.custom-icon {
+  font-size: 16 px;
+  color: #2c7be5;
+  margin: 10px;
+  transition: color 0.3s, transform 0.3s;
+}
+
+.custom-icon:hover {
+  color: #1a529c;
+  transform: scale(1.2);
+}
+
+/* Login form styles */
+.login-container {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background-color: rgba(0, 0, 0, 0.5);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 1000;
+}
+
+.login-form {
+  background-color: white;
+  padding: 30px;
+  border-radius: 10px;
+  box-shadow: 0 0 20px rgba(0, 0, 0, 0.2);
+  width: 400px;
+  max-width: 90%;
+}
+
+.login-form h2 {
+  text-align: center;
+  margin-bottom: 20px;
+  color: #333;
+}
+
+.form-group {
+  margin-bottom: 15px;
+}
+
+.form-group label {
+  display: block;
+  margin-bottom: 5px;
+  font-weight: bold;
+}
+
+.form-group input {
+  width: 100%;
+  padding: 10px;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  font-size: 16px;
+}
+
+.form-group button {
+  width: 100%;
+  padding: 12px;
+  background-color: #4CAF50;
+  color: white;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 16px;
+  font-weight: bold;
+}
+
+.form-group button:hover {
+  background-color: #45a049;
+}
+
+.error-message {
+  color: #f44336;
+  margin-top: 15px;
+  padding: 10px;
+  background-color: #ffebee;
+  border-radius: 4px;
+  text-align: center;
+}
+
+/* JSON display styling */
+#jsonDisplay {
+  background-color: #f5f5f5;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', 'Consolas', monospace;
+  font-size: 14px;
+  line-height: 1.5;
+  padding: 15px;
+  tab-size: 2;
+  white-space: pre;
+  overflow: auto;
+}
+
+.hljs {
+  background: #f5f5f5 !important;
+  padding: 0 !important;
+}
+
+/* Color Settings Menu */
+.color-settings-menu {
+  background: white;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  padding: 15px;
+  margin: 10px 0;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+}
+
+.color-settings-header {
+  margin-bottom: 15px;
+  border-bottom: 1px solid #eee;
+  padding-bottom: 10px;
+}
+
+.color-settings-header h3 {
+  margin: 0;
+  color: #333;
+}
+
+.color-setting-group {
+  display: flex;
+  align-items: center;
+  margin-bottom: 10px;
+  padding: 5px 0;
+}
+
+.color-setting-group label {
+  flex: 1;
+  margin-right: 10px;
+}
+
+.color-setting-group input[type="color"] {
+  width: 50px;
+  height: 30px;
+  padding: 0;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.color-settings-footer {
+  margin-top: 15px;
+  padding-top: 15px;
+  border-top: 1px solid #eee;
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+}

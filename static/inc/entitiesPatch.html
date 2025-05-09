@@ -1,0 +1,66 @@
+<div class="form-container">
+  <div class="form-header">
+    <button class="method-button patch-button" onclick="handlePatchQuery(document.getElementById('entityPatchInput').value, document.getElementById('jsonDisplay').textContent)">PATCH</button>
+  </div>
+  <div class="form-body">
+    <label for="entityPatchInput">Entity ID:</label>
+    <input type="text" id="entityPatchInput" class="input" placeholder="Enter the entity ID" value="urn:ngsi-ld:TG8I:240825003">
+    <pre id="jsonDisplay"><code class="language-json">{
+  "t0": {
+    "type": "Property",
+    "value": 15.5
+  },
+  "@context": [
+    "https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context.jsonld"
+  ]
+}</code></pre>
+  </div>
+  <div class="form-footer">
+    <small>This form updates an entity in the Orion-LD Context Broker.</small>
+  </div>
+</div>
+
+<script>
+  // Function to initialize form with saved values
+  function initializeForm() {
+    // Load entity ID input value
+    const savedEntityId = localStorage.getItem('entityPatchInputText');
+    if (savedEntityId) {
+      const entityInput = document.getElementById('entityPatchInput');
+      if (entityInput) {
+        entityInput.value = savedEntityId;
+      }
+    }
+    
+    // Load JSON textarea value
+    const savedJsonInput = localStorage.getItem('jsonDisplay');
+    if (savedJsonInput) {
+      const jsonDisplay = document.getElementById('jsonDisplay');
+      if (jsonDisplay) {
+        jsonDisplay.textContent = savedJsonInput;
+      }
+    }
+  }
+
+  // Function to set up event listeners
+  function setupEventListeners() {
+    const entityInput = document.getElementById('entityPatchInput');
+    if (entityInput) {
+      entityInput.addEventListener('input', function() {
+        localStorage.setItem('entityPatchInputText', this.value);
+      });
+    }
+
+    const jsonDisplay = document.getElementById('jsonDisplay');
+    if (jsonDisplay) {
+      jsonDisplay.addEventListener('input', function() {
+        localStorage.setItem('jsonDisplay', this.textContent);
+      });
+    }
+  }
+
+  // Initialize form and set up listeners
+  initializeForm();
+  setupEventListeners();
+</script>
+

@@ -1,0 +1,20 @@
+# Set the correct MIME type for JavaScript files
+AddType application/javascript .js
+
+# Allow cross-origin requests if needed
+<IfModule mod_headers.c>
+    Header set Access-Control-Allow-Origin "*"
+    Header set Access-Control-Allow-Methods "GET, POST, PUT, DELETE, OPTIONS"
+    Header set Access-Control-Allow-Headers "Content-Type, Authorization"
+</IfModule>
+
+# Ensure caching is properly configured
+<IfModule mod_expires.c>
+    ExpiresActive On
+    ExpiresByType application/javascript "access plus 1 month"
+</IfModule>
+
+# Enable compression for JavaScript files
+<IfModule mod_deflate.c>
+    AddOutputFilterByType DEFLATE application/javascript
+</IfModule>

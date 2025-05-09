@@ -1,0 +1,95 @@
+<h3>Queue</h3>
+    <table border="1" cellpadding="6" cellspacing="0">
+      <thead>
+        <tr>
+          <th>Parameter</th>
+          <th>Description</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><code>attrs</code></td>
+          <td>Comma-separated list of attribute names to <strong>include in the response</strong>. If omitted, all attributes are returned.</td>
+        </tr>
+        <tr>
+          <td><code>count</code></td>
+          <td>If set to <code>true</code>, the response will include the <code>X-Total-Count</code> HTTP header indicating the total number of matching entities.</td>
+        </tr>
+        <tr>
+          <td><code>coordinates</code></td>
+          <td>Used with geo-queries. Specifies a <strong>geometry area</strong> (like a polygon, point, or bounding box) to apply the spatial filter.</td>
+        </tr>
+        <tr>
+          <td><code>csf</code></td>
+          <td><strong>Context Source Filter</strong>: used when federated context sources are in play. Filters which sources to query.</td>
+        </tr>
+        <tr>
+          <td><code>format</code></td>
+          <td>Output format. Possible values: <code>normalized</code>, <code>keyValues</code>, or <code>geojson</code>. Affects the structure of returned attributes.</td>
+        </tr>
+        <tr>
+          <td><code>geoproperty</code></td>
+          <td>Specifies the <strong>name of the GeoProperty</strong> to use for spatial filtering (default is <code>"location"</code>).</td>
+        </tr>
+        <tr>
+          <td><code>geometry</code></td>
+          <td>Type of geometry used for spatial filtering: <code>Point</code>, <code>LineString</code>, <code>Polygon</code>, <code>MultiPolygon</code>, <code>BBox</code>, etc.</td>
+        </tr>
+        <tr>
+          <td><code>geometryProperty</code></td>
+          <td>Synonym for <code>geoproperty</code>; used to declare the geo-attribute used for <code>georel</code>.</td>
+        </tr>
+        <tr>
+          <td><code>georel</code></td>
+          <td>Defines the <strong>spatial relationship</strong> to be applied in the geo-query. Examples: <code>near;maxDistance==1000</code>, <code>within</code>, <code>intersects</code>.</td>
+        </tr>
+        <tr>
+          <td><code>id</code></td>
+          <td>One or more entity IDs (comma-separated) to filter results.</td>
+        </tr>
+        <tr>
+          <td><code>idPattern</code></td>
+          <td>A regex pattern to match entity IDs. Useful for retrieving a group of entities with a naming convention.</td>
+        </tr>
+        <tr>
+          <td><code>lang</code></td>
+          <td>Specifies the language for multilingual properties (if <code>LanguageProperty</code> is used).</td>
+        </tr>
+        <tr>
+          <td><code>local</code></td>
+          <td>If <code>true</code>, restricts the query to only <strong>local entities</strong> (ignores federated sources or linked data contexts).</td>
+        </tr>
+        <tr>
+          <td><code>limit</code></td>
+          <td>Max number of entities to return. Useful for pagination.</td>
+        </tr>
+        <tr>
+          <td><code>offset</code></td>
+          <td>Index of the first entity to return. Used in conjunction with <code>limit</code> for pagination.</td>
+        </tr>
+        <tr>
+          <td><code>onlyIds</code></td>
+          <td>If <code>true</code>, returns only the entity IDs instead of full entities.</td>
+        </tr>
+        <tr>
+          <td><code>options</code></td>
+          <td>A list of flags to modify query behavior. Common values: <code>keyValues</code> (flattened response), <code>sysAttrs</code> (include system attributes).</td>
+        </tr>
+        <tr>
+          <td><code>q</code></td>
+          <td>Advanced <strong>query expression</strong> for attribute values (e.g., <code>temperature&gt;25;status=="active"</code>).</td>
+        </tr>
+        <tr>
+          <td><code>scopeQ</code></td>
+          <td>Used for scoping in linked data and federated querying. Often not needed in single-broker deployments.</td>
+        </tr>
+        <tr>
+          <td><code>type</code></td>
+          <td>One or more entity types (comma-separated) to filter the results.</td>
+        </tr>
+        <tr>
+          <td><code>pick</code></td>
+          <td>Used to <strong>select only certain properties</strong> (e.g., <code>pick=temperature,humidity</code>), similar to <code>attrs</code>, depending on broker version.</td>
+        </tr>
+      </tbody>
+    </table>

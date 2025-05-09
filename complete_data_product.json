@@ -1,0 +1,166 @@
+{
+  "message": "Data product created successfully",
+  "data_product": {
+    "_id": "dp-aeros-2025-001",
+    "name": "Temperature Monitoring System",
+    "description": "Real-time temperature monitoring data product for industrial environments",
+    "owner": "aeros_admin",
+    "glossary_terms": [
+      "temperature",
+      "monitoring",
+      "industrial",
+      "sensor",
+      "real-time"
+    ],
+    "tags": [
+      "environment",
+      "industrial",
+      "iot",
+      "temperature"
+    ],
+    "data_source_type": "kafka",
+    "translation": {
+      "defined": "yes",
+      "source_to_central": "temperature_mapping_v1",
+      "central_to_target": "central_to_dashboard_v2",
+      "settings": {
+        "chanType": "kafka",
+        "source": "raw_temperature_data",
+        "inpAlignmentName": "raw_temp_format",
+        "inpAlignmentVersion": "1.2.0",
+        "outAlignmentName": "standard_temp_format",
+        "outAlignmentVersion": "2.1.0",
+        "sink": "processed_temperature_data",
+        "parallelism": 3,
+        "channelId": "temp_channel_001",
+        "descId": "temp_desc_001"
+      }
+    },
+    "details": {
+      "output_kafka_topic": "processed_temperature_data",
+      "pre_translation_output_kafka_topic": "pre_processed_temperature_data",
+      "post_translation_output_kafka_topic": "post_processed_temperature_data",
+      "db_url": "mongodb://datastore.aeros.io:27017/temperature_db",
+      "file_path": "/data/temperature/outputs/",
+      "freshness": {
+        "enabled": true,
+        "schedule": "0 */15 * * * *"
+      },
+      "metadata": {
+        "name": "Temperature Data Product",
+        "author": "Aeros Data Engineering Team",
+        "description": "Processes and transforms industrial temperature sensor data from raw format to standardized format",
+        "tags": [
+          "temperature",
+          "industrial",
+          "transformation",
+          "monitoring"
+        ],
+        "mapping": {
+          "name": "Temperature Data Mapping",
+          "author": "data_engineer_1",
+          "inputFormat": "JSON",
+          "outputFormat": "JSON-LD",
+          "rml": "@prefix rr: <http://www.w3.org/ns/r2rml#>.\n@prefix rml: <http://semweb.mmlab.be/ns/rml#>.\n@prefix xsd: <http://www.w3.org/2001/XMLSchema#>."
+        }
+      },
+      "settings": {
+        "channelId": "temp_channel_001",
+        "inputTopicSettings": {
+          "topic": "raw_temperature_readings",
+          "brokerType": "kafka",
+          "kafkaSettings": {
+            "host": "kafka.aeros.io",
+            "port": 9092,
+            "groupId": "temperature-consumer-group"
+          },
+          "mqttSettings": {
+            "protocol": "mqtt",
+            "host": "mqtt.aeros.io",
+            "port": 1883,
+            "clientId": "temp-mqtt-client",
+            "user": "mqtt_user",
+            "password": "mqtt_password"
+          }
+        },
+        "outputTopicSettings": {
+          "topic": "processed_temperature_readings",
+          "brokerType": "kafka",
+          "kafkaSettings": {
+            "host": "kafka.aeros.io",
+            "port": 9092,
+            "groupId": "temperature-producer-group"
+          },
+          "mqttSettings": {
+            "protocol": "mqtt",
+            "host": "mqtt.aeros.io",
+            "port": 1883,
+            "clientId": "temp-mqtt-output-client",
+            "user": "mqtt_user",
+            "password": "mqtt_password"
+          }
+        },
+        "monitorInputTopicSettings": {
+          "topic": "monitor_input_temperature",
+          "brokerType": "kafka",
+          "kafkaSettings": {
+            "host": "kafka.aeros.io",
+            "port": 9092,
+            "groupId": "temperature-monitor-input-group"
+          },
+          "mqttSettings": {
+            "protocol": "mqtt",
+            "host": "mqtt.aeros.io",
+            "port": 1883,
+            "clientId": "temp-mqtt-monitor-input",
+            "user": "mqtt_monitor",
+            "password": "mqtt_monitor_pwd"
+          }
+        },
+        "monitorOutputTopicSettings": {
+          "topic": "monitor_output_temperature",
+          "brokerType": "kafka",
+          "kafkaSettings": {
+            "host": "kafka.aeros.io",
+            "port": 9092,
+            "groupId": "temperature-monitor-output-group"
+          },
+          "mqttSettings": {
+            "protocol": "mqtt",
+            "host": "mqtt.aeros.io",
+            "port": 1883,
+            "clientId": "temp-mqtt-monitor-output",
+            "user": "mqtt_monitor",
+            "password": "mqtt_monitor_pwd"
+          }
+        },
+        "errorTopicSettings": {
+          "topic": "temperature_errors",
+          "brokerType": "kafka",
+          "kafkaSettings": {
+            "host": "kafka.aeros.io",
+            "port": 9092,
+            "groupId": "temperature-error-group"
+          },
+          "mqttSettings": {
+            "protocol": "mqtt",
+            "host": "mqtt.aeros.io",
+            "port": 1883,
+            "clientId": "temp-mqtt-error",
+            "user": "mqtt_monitor",
+            "password": "mqtt_monitor_pwd"
+          }
+        }
+      },
+      "status": {
+        "isStopped": false,
+        "inputTopicEnabled": true,
+        "outputTopicEnabled": true,
+        "inputMonitorTopicEnabled": true,
+        "outputMonitorTopicEnabled": true,
+        "errorTopicEnabled": true
+      }
+    },
+    "creationTimestamp": "2025-05-09T10:30:00Z"
+  }
+}

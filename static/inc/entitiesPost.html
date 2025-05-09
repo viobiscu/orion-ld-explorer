@@ -1,0 +1,184 @@
+<div class="form-container">
+  <div class="form-header">
+    <button class="method-button post-button" onclick="processPostQuery(document.getElementById('jsonInput').value)">POST</button>
+  </div>
+  <div class="form-body">
+    <textarea id="jsonInput" class="textarea" style="width: 100%; height: 500px; resize: both; overflow: auto;">
+{
+  "id": "urn:ngsi-ld:TG8I:240825003",
+  "type": "TG8I",
+  "@context": [
+    "http://ngsi-ld.sensorsreport.net/synchro-context.jsonld"
+  ],
+  "APIKey": {
+    "type": "Property",
+    "value": "dP1JO6"
+  },
+  "accessPointName": {
+    "type": "Property",
+    "value": "Synchro-WiFi"
+  },
+  "accessPointPassword": {
+    "type": "Property",
+    "value": "supersecure"
+  },
+  "dhcp": {
+    "type": "Property",
+    "value": true
+  },
+  "gw": {
+    "type": "Property",
+    "value": "192.168.1.1"
+  },
+  "nm": {
+    "type": "Property",
+    "value": "255.255.255.0"
+  },
+  "mac": {
+    "type": "Property",
+    "value": "00:1A:2B:3C:4D:5E"
+  },
+  "missedTX": {
+    "type": "Property",
+    "value": 0
+  },
+  "otaFileName": {
+    "type": "Property",
+    "value": "firmware_v1.2.bin"
+  },
+  "otaHostName": {
+    "type": "Property",
+    "value": "ota.synchro-srl.ro"
+  },
+  "otaPort": {
+    "type": "Property",
+    "value": 8080
+  },
+  "power": {
+    "type": "Property",
+    "value": true
+  },
+  "rssi": {
+    "type": "Property",
+    "value": -55
+  },
+  "rx": {
+    "type": "Property",
+    "value": 100
+  },
+  "tx": {
+    "type": "Property",
+    "value": 4
+  },
+  "sampleTime": {
+    "type": "Property",
+    "value": 900
+  },
+  "vbat": {
+    "type": "Property",
+    "value": 3.7
+  },
+  "timestamp": {
+    "type": "Property",
+    "value": "2025-04-02T10:15:00Z"
+  },
+  "serverHost1": {
+    "type": "Property",
+    "value": "data1.synchro-srl.ro"
+  },
+  "t0": {
+    "type": "Property",
+    "value": 11.5,
+    "name": "frig",
+    "unit": "cel",
+    "AlarmThresholds": {
+      "type": "Property",
+      "value": {
+        "low": {
+          "type": "Property",
+          "value": 3.7
+        },
+        "preLow": {
+          "type": "Property",
+          "value": 4.5
+        },
+        "preHigh": {
+          "type": "Property",
+          "value": 23.7
+        },
+        "high": {
+          "type": "Property",
+          "value": 28
+        }
+      }
+    }
+  },
+  "rh0": {
+    "type": "Property",
+    "value": 20.3,
+    "AlarmThresholds": {
+      "type": "Property",
+      "value": {
+        "low": {
+          "type": "Property",
+          "value": 10
+        },
+        "preLow": {
+          "type": "Property",
+          "value": 20
+        },
+        "preHigh": {
+          "type": "Property",
+          "value": 80
+        },
+        "high": {
+          "type": "Property",
+          "value": 90
+        }
+      }
+    }
+  },
+  "serverHost2": {
+    "type": "Property",
+    "value": "data2.synchro-srl.ro"
+  },
+  "serverPort2": {
+    "type": "Property",
+    "value": 1883
+  },
+  "t0Min": {
+    "type": "Property",
+    "value": -10
+  },
+  "t0Max": {
+    "type": "Property",
+    "value": 60
+  },
+  "rh0Min": {
+    "type": "Property",
+    "value": 20
+  },
+  "rh0Max": {
+    "type": "Property",
+    "value": 90
+  },
+  "sensorIP": {
+    "type": "Property",
+    "value": "192.168.1.100"
+  },
+  "utcOffset": {
+    "type": "Property",
+    "value": 120
+  },
+  "dateTimeSynchronise": {
+    "type": "Property",
+    "value": "2025-04-02T10:00:00Z"
+  }
+}
+    </textarea>
+  </div>
+  <div class="form-footer">
+    <small>This form creates a new entity in the Orion-LD Context Broker.</small>
+  </div>
+</div>
+

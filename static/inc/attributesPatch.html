@@ -1,0 +1,115 @@
+<div class="form-container">
+    <div class="form-header">
+        <h3>Attribute Operations</h3>
+    </div>
+    <div class="form-body">
+        <!-- Entity Selection Section -->
+        <div class="entity-section">
+            <label for="entityInput">Entity ID:</label>
+            <input type="text" id="entityInput" class="input" placeholder="Enter entity ID (e.g., urn:ngsi-ld:Entity:001)">
+            <button class="method-button get-button" onclick="handleEntityGet()">GET</button>
+        </div>
+
+        <!-- Attribute Selection Section (initially hidden) -->
+        <div id="attributeSection" style="display: none; margin-top: 20px;">
+            <label for="attributeSelect">Select Attribute:</label>
+            <select id="attributeSelect" class="input" style="width: auto;">
+                <option value="">Choose an attribute...</option>
+            </select>
+            <button class="method-button get-button" onclick="handleAttributeGet()">GET</button>
+        </div>
+
+        <!-- Attribute Value Section (initially hidden) -->
+        <div id="attributeValueSection" style="display: none; margin-top: 20px;">
+            <label for="attributeJson">Attribute Value:</label>
+            <pre id="attributeJson"><code class="language-json"></code></pre>
+            <button class="method-button patch-button" onclick="handleAttributePatch()" style="margin-top: 10px;">PATCH</button>
+        </div>
+    </div>
+</div>
+
+<script>
+async function handleEntityGet() {
+    try {
+        const entityId = document.getElementById('entityInput').value;
+        if (!entityId) {
+            alert('Please enter an Entity ID');
+            return;
+        }
+
+        const client = new OrionLDClient();
+        const entityData = await client.getEntity(entityId);
+        
+        // Clear and populate attribute select
+        const attributeSelect = document.getElementById('attributeSelect');
+        attributeSelect.innerHTML = '<option value="">Choose an attribute...</option>';
+        
+        // Add all attributes except id, type, and @context
+        Object.keys(entityData).forEach(key => {
+            if (key !== 'id' && key !== 'type' && !key.startsWith('@')) {
+                const option = document.createElement('option');
+                option.value = key;
+                option.textContent = key;
+                attributeSelect.appendChild(option);
+            }
+        });
+
+        // Store entity data for later use
+        window.currentEntityData = entityData;
+        
+        // Show attribute selection section
+        document.getElementById('attributeSection').style.display = 'block';
+        document.getElementById('attributeValueSection').style.display = 'none';
+    } catch (error) {
+        alert('Error fetching entity: ' + error.message);
+        console.error('Error:', error);
+    }
+}
+
+async function handleAttributeGet() {
+    try {
+        const entityId = document.getElementById('entityInput').value;
+        const attributeName = document.getElementById('attributeSelect').value;
+        
+        if (!attributeName) {
+            alert('Please select an attribute');
+            return;
+        }
+
+        const client = new OrionLDClient();
+        const attributeData = await client.getAttribute(entityId, attributeName);
+        
+        // Display attribute data in pre code block
+        const attributeJson = document.getElementById('attributeJson').querySelector('code');
+        attributeJson.textContent = JSON.stringify(attributeData, null, 2);
+        
+        // Show attribute value section
+        document.getElementById('attributeValueSection').style.display = 'block';
+    } catch (error) {
+        alert('Error fetching attribute: ' + error.message);
+        console.error('Error:', error);
+    }
+}
+
+async function handleAttributePatch() {
+    try {
+        const entityId = document.getElementById('entityInput').value;
+        const attributeName = document.getElementById('attributeSelect').value;
+        const attributeValue = JSON.parse(document.getElementById('attributeJson').querySelector('code').textContent);
+        
+        const client = new OrionLDClient();
+        await client.updateAttribute(entityId, attributeName, attributeValue);
+        
+        alert('Attribute updated successfully');
+    } catch (error) {
+        alert('Error updating attribute: ' + error.message);
+        console.error('Error:', error);
+    }
+}
+
+// Initialize when the page loads
+document.addEventListener('DOMContentLoaded', function() {
+    // Clear any previous entity data
+    window.currentEntityData = null;
+});
+</script>
