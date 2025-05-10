@@ -630,24 +630,20 @@
                 <li class="treeview-item expandable">
                     <i class="fa-regular fa-folder-closed custom-icon"></i><span>Relationships</span>
                 </li>
-                <!-- <ul class="nested">
+                <ul class="nested">
+                    <li>
+                        <i class="fa-regular fa-diagram-project custom-icon"></i><span>Relationships</span>
+                        <button class="method-button get-button" onclick="handleEntityGet('inc/relationshipsVisual.html')">VISUALIZE</button>
+                    </li>
                     <li>
                         <i class="fa-regular fa-file custom-icon"></i><span>Get my Parents</span>
-                        <button class="method-button get-button" onclick="processGetData('/relationships{relationshipId}', '/urn:ngsi-ld:???')">GET</button>
+                        <button class="method-button get-button" onclick="processGetData('/relationships?type=parent', '/urn:ngsi-ld:???')">GET</button>
                     </li>
                     <li>
-                        <i class="fa-regular fa-file custom-icon"></i><span>Get my Kids</span>
-                        <button class="method-button get-button" onclick="processGetData('/relationships{relationshipId}', '/urn:ngsi-ld:???')">GET</button>
+                        <i class="fa-regular fa-file custom-icon"></i><span>Get my Children</span>
+                        <button class="method-button get-button" onclick="processGetData('/relationships?type=child', '/urn:ngsi-ld:???')">GET</button>
                     </li>
-                    <li>
-                        <i class="fa-regular fa-file custom-icon"></i><span>Relationships</span>
-                        <button class="method-button patch-button" onclick="handleEntityGet('inc/relationshipsPatch.html')">PATCH</button>
-                    </li>
-                    <li>
-                        <i class="fa-regular fa-file custom-icon"></i><span>Relationships</span>
-                        <button class="method-button delete-button" onclick="processDeleteData('/relationships{relationshipId}', '/urn:ngsi-ld:???')">DELETE</button>
-                    </li>
-                </ul> -->
+                </ul>
 
                 <li class="treeview-item">
                     <i class="fa-regular fa-file custom-icon"></i>

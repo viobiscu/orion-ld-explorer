@@ -1,0 +1,129 @@
+<div class="relationship-visualization-container">
+    <h2>Entity Relationship Visualization</h2>
+    
+    <div class="controls-panel">
+        <div class="input-group">
+            <label for="entityId">Entity ID:</label>
+            <input type="text" id="entityId" placeholder="urn:ngsi-ld:Entity:123" class="full-width-input">
+        </div>
+        
+        <div class="button-group">
+            <button id="visualizeRelationships" class="method-button get-button">Visualize Relationships</button>
+            <button id="clearGraph" class="method-button delete-button">Clear Graph</button>
+        </div>
+        
+        <div class="depth-control">
+            <label for="relationshipDepth">Relationship Depth:</label>
+            <select id="relationshipDepth">
+                <option value="1">1 level</option>
+                <option value="2" selected>2 levels</option>
+                <option value="3">3 levels</option>
+                <option value="4">4 levels</option>
+                <option value="5">Max (5 levels)</option>
+            </select>
+        </div>
+    </div>
+    
+    <div class="visualization-area">
+        <!-- Vis.js Network container -->
+        <div id="network-container"></div>
+        
+        <!-- Network legend -->
+        <div class="network-legend">
+            <h3>Legend</h3>
+            <div class="legend-item">
+                <div class="legend-color" style="background-color: #97C2FC;"></div>
+                <span>Entity</span>
+            </div>
+            <div class="legend-item">
+                <div class="legend-color" style="background-color: #FFCC00;"></div>
+                <span>Selected Entity</span>
+            </div>
+            <div class="legend-item">
+                <div class="legend-color" style="background-color: #FB7E81;"></div>
+                <span>Relationship</span>
+            </div>
+        </div>
+    </div>
+    
+    <div class="entity-details-panel">
+        <h3>Entity Details</h3>
+        <div id="entity-details-content">
+            <p>Select an entity in the graph to view its details</p>
+        </div>
+    </div>
+</div>
+
+<link rel="stylesheet" href="https://unpkg.com/vis-network/dist/dist/vis-network.min.css">
+<script src="https://unpkg.com/vis-network/standalone/umd/vis-network.min.js"></script>
+<script src="js/network/relationship-visualizer.js"></script>
+
+<style>
+    .relationship-visualization-container {
+        display: flex;
+        flex-direction: column;
+        gap: 16px;
+        padding: 10px;
+    }
+    
+    .controls-panel {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 10px;
+        align-items: center;
+        margin-bottom: 10px;
+    }
+    
+    .full-width-input {
+        width: 300px;
+    }
+    
+    .button-group {
+        display: flex;
+        gap: 8px;
+    }
+    
+    .visualization-area {
+        display: flex;
+        gap: 16px;
+    }
+    
+    #network-container {
+        width: 70%;
+        height: 500px;
+        border: 1px solid #ccc;
+        background-color: #f9f9f9;
+    }
+    
+    .network-legend {
+        width: 25%;
+        padding: 10px;
+        border: 1px solid #ccc;
+        background-color: #f9f9f9;
+    }
+    
+    .legend-item {
+        display: flex;
+        align-items: center;
+        margin-bottom: 8px;
+    }
+    
+    .legend-color {
+        width: 20px;
+        height: 20px;
+        margin-right: 8px;
+        border: 1px solid #ccc;
+    }
+    
+    .entity-details-panel {
+        padding: 10px;
+        border: 1px solid #ccc;
+        background-color: #f9f9f9;
+        max-height: 300px;
+        overflow-y: auto;
+    }
+    
+    .depth-control {
+        margin-left: 10px;
+    }
+</style>
