@@ -756,6 +756,208 @@ def get_token_details():
         logger.exception("Error decoding token")
         return jsonify({'authenticated': False, 'error': str(e)})
 
+@app.route('/api/auth/retrieve-token')
+def retrieve_token():
+    """
+    Retrieve the token from HTTP-only cookies and return it to the client
+    This helps with Chrome's new third-party cookie policies by providing a way
+    to synchronize the token state between HTTP-only cookies and localStorage
+    """
+    logger.debug("Retrieving token from HTTP-only cookies")
+    
+    # Get tokens from cookies
+    access_token = request.cookies.get('access_token')
+    refresh_token = request.cookies.get('refresh_token')
+    
+    if not access_token:
+        logger.debug("No access token found in cookies")
+        # Try to refresh the token if we have a refresh token
+        if refresh_token:
+            logger.debug("No access token but refresh token found, attempting refresh")
+            try:
+                # Prepare refresh request
+                refresh_data = {
+                    'grant_type': 'refresh_token',
+                    'client_id': KEYCLOAK_CONFIG['client_id'],
+                    'client_secret': KEYCLOAK_CONFIG['client_secret'],
+                    'refresh_token': refresh_token
+                }
+                
+                # Get new tokens from Keycloak
+                logger.debug("Requesting new tokens with refresh token")
+                response = requests.post(KEYCLOAK_CONFIG['token_url'], data=refresh_data)
+                
+                if response.status_code != 200:
+                    logger.error(f"Token refresh failed: {response.status_code} {response.text}")
+                    return jsonify({
+                        'success': False,
+                        'error': 'Failed to refresh token',
+                        'authenticated': False
+                    }), 401
+                
+                tokens = response.json()
+                logger.debug("Successfully refreshed tokens")
+                
+                # Extract user info from token for session
+                try:
+                    payload = tokens['access_token'].split('.')[1]
+                    # Add padding if needed
+                    payload += '=' * ((4 - len(payload) % 4) % 4)
+                    decoded_payload = base64.b64decode(payload)
+                    token_data = json.loads(decoded_payload)
+                    
+                    # Extract TenantId from token data
+                    tenant = 'Default'
+                    
+                    # Check all possible variations of tenant field
+                    if 'TenantId' in token_data:
+                        if isinstance(token_data['TenantId'], list) and token_data['TenantId']:
+                            tenant = token_data['TenantId'][0]
+                        elif isinstance(token_data['TenantId'], str):
+                            tenant = token_data['TenantId']
+                    elif 'tenant_id' in token_data:
+                        tenant = token_data['tenant_id']
+                    elif 'tenantId' in token_data:
+                        tenant = token_data['tenantId']
+                    elif 'Tenant' in token_data:
+                        tenant = token_data['Tenant']
+                    elif 'tenant' in token_data:
+                        tenant = token_data['tenant']
+                    
+                    # Store user info in session
+                    session['user'] = {
+                        'username': token_data.get('preferred_username', 'unknown_user'),
+                        'tenant': tenant
+                    }
+                    
+                    # Update cookies
+                    resp = make_response(jsonify({
+                        'success': True,
+                        'access_token': tokens['access_token'],
+                        'id_token': tokens.get('id_token'),
+                        'expires_in': tokens['expires_in'],
+                        'authenticated': True,
+                        'user': session['user']
+                    }))
+                    
+                    # Set cookies
+                    secure_cookies = os.environ.get('SECURE_COOKIES', 'false').lower() in ('true', 't', '1', 'yes')
+                    
+                    resp.set_cookie(
+                        'access_token',
+                        tokens['access_token'],
+                        httponly=True,
+                        secure=secure_cookies,
+                        max_age=tokens['expires_in'],
+                        samesite='Lax',
+                        path='/'
+                    )
+                    
+                    resp.set_cookie(
+                        'refresh_token',
+                        tokens['refresh_token'],
+                        httponly=True,
+                        secure=secure_cookies,
+                        max_age=tokens['expires_in'] * 2,
+                        samesite='Lax',
+                        path='/'
+                    )
+                    
+                    logger.debug("Token refreshed and returned to client")
+                    return resp
+                    
+                except Exception as e:
+                    logger.exception("Error extracting user info from refreshed token")
+                    return jsonify({
+                        'success': False,
+                        'error': str(e),
+                        'authenticated': False
+                    }), 500
+            except Exception as e:
+                logger.exception("Error during token refresh")
+                return jsonify({
+                    'success': False,
+                    'error': str(e),
+                    'authenticated': False
+                }), 500
+        
+        # If we reach here, we couldn't get a token
+        return jsonify({
+            'success': False,
+            'error': 'No token available',
+            'authenticated': False
+        }), 401
+    
+    # We have an access token, parse it to check if it's valid and get user info
+    try:
+        payload = access_token.split('.')[1]
+        # Add padding if needed
+        payload += '=' * ((4 - len(payload) % 4) % 4)
+        decoded_payload = base64.b64decode(payload)
+        token_data = json.loads(decoded_payload)
+        
+        # Check if token is expired
+        current_time = time.time()
+        if 'exp' in token_data and token_data['exp'] < current_time:
+            logger.debug("Token is expired")
+            
+            # If we have a refresh token, try to refresh
+            if refresh_token:
+                logger.debug("Token expired but refresh token found, redirecting to refresh endpoint")
+                return redirect('/api/auth/refresh')
+            
+            return jsonify({
+                'success': False,
+                'error': 'Token is expired',
+                'authenticated': False
+            }), 401
+        
+        # Token is valid, extract user info
+        username = token_data.get('preferred_username', 'unknown_user')
+        
+        # Extract tenant
+        tenant = 'Default'
+        if 'TenantId' in token_data:
+            if isinstance(token_data['TenantId'], list) and token_data['TenantId']:
+                tenant = token_data['TenantId'][0]
+            elif isinstance(token_data['TenantId'], str):
+                tenant = token_data['TenantId']
+        elif 'tenant_id' in token_data:
+            tenant = token_data['tenant_id']
+        elif 'tenantId' in token_data:
+            tenant = token_data['tenantId']
+        elif 'Tenant' in token_data:
+            tenant = token_data['Tenant']
+        elif 'tenant' in token_data:
+            tenant = token_data['tenant']
+        
+        # Update session
+        session['user'] = {
+            'username': username,
+            'tenant': tenant
+        }
+        
+        # Calculate token lifetime
+        expires_in = token_data.get('exp', int(time.time()) + 3600) - int(time.time())
+        
+        # Return token info
+        logger.debug(f"Token retrieved for user: {username}")
+        return jsonify({
+            'success': True,
+            'access_token': access_token,
+            'expires_in': expires_in,
+            'authenticated': True,
+            'user': session['user']
+        })
+        
+    except Exception as e:
+        logger.exception("Error processing token")
+        return jsonify({
+            'success': False,
+            'error': str(e),
+            'authenticated': False
+        }), 500
+
 # NGSI-LD API proxy route to handle entity requests
 @app.route('/api/ngsi-ld/v1/<path:subpath>', methods=['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'])
 def ngsi_ld_proxy(subpath):

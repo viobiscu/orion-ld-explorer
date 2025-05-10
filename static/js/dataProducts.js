@@ -5,8 +5,26 @@
 
 import { appendToLogs } from './api.js';
 
-// JSON output utility function - importing from api.js
+// JSON output utility function - using window.mainEditor for consistency
 function displayJSON(data) {
+    // Check if the main editor is available
+    if (window.mainEditor && typeof window.mainEditor.setValue === 'function') {
+        try {
+            // Use the main editor to display the JSON data
+            window.mainEditor.setValue(JSON.stringify(data, null, 2));
+            console.log('Updated main editor with data product data');
+        } catch (error) {
+            console.error('Error updating main editor:', error);
+            fallbackDisplayJSON(data);
+        }
+    } else {
+        console.warn('Main JSON editor not available, using fallback display method');
+        fallbackDisplayJSON(data);
+    }
+}
+
+// Fallback display method if main editor is not available
+function fallbackDisplayJSON(data) {
     const displayArea = document.getElementById('displayArea');
     if (displayArea) {
         // Create or get the pre element with code block

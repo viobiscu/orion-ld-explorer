@@ -140,6 +140,16 @@ th {
   padding: 10px;
   border-radius: 5px;
   transition: opacity 0.3s ease-in-out;
+  position: relative; /* Add position relative to contain absolute elements */
+  overflow: hidden; /* Prevent overflow */
+}
+
+/* Fix for the JSON editor textarea size */
+#mainJsonEditorContainer-input {
+  box-sizing: border-box !important; /* Force box-sizing */
+  width: 100% !important; /* Override the inline style */
+  left: 0 !important; /* Override the left position */
+  padding-left: 40px; /* Add padding instead of using left position */
 }
 
 #displayArea.transitioning {

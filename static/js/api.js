@@ -47,10 +47,55 @@ try {
     });
 } catch (e) {
     console.error('Module import error:', e);
+    // Ensure fallback implementations are created even if the entire try block fails
+    if (!ErrorBoundary) {
+        ErrorBoundary = class ErrorBoundary {
+            constructor() { this.errors = []; }
+            wrap(fn) { return async (...args) => { try { return await fn(...args); } catch (e) { console.error(e); throw e; } }; }
+            addError(error) { console.error('API Error:', error); }
+            clearErrors() {}
+            getErrors() { return []; }
+        };
+        errorBoundary = new ErrorBoundary();
+    }
+    
+    if (!store) {
+        store = {
+            setLoading: (loading) => console.log('Store: setLoading', loading),
+            setError: (error) => console.error('Store error:', error),
+            getState: () => ({ loading: false, error: null, data: null })
+        };
+    }
+    
+    if (!authManager) {
+        authManager = {
+            getToken: () => null,
+            isAuthenticated: () => false,
+            login: () => console.log('Auth: login called')
+        };
+    }
 }
 
-// JSON output utility function
+// JSON output utility function using window.mainEditor for consistency
 function displayJSON(data) {
+    // Check if the main editor is available
+    if (window.mainEditor && typeof window.mainEditor.setValue === 'function') {
+        try {
+            // Use the main editor to display the JSON data
+            window.mainEditor.setValue(JSON.stringify(data, null, 2));
+            console.log('Updated main editor with JSON data');
+        } catch (error) {
+            console.error('Error updating main editor:', error);
+            fallbackDisplayJSON(data);
+        }
+    } else {
+        console.warn('Main JSON editor not available, using fallback display method');
+        fallbackDisplayJSON(data);
+    }
+}
+
+// Fallback display method if main editor is not available
+function fallbackDisplayJSON(data) {
     const displayArea = document.getElementById('displayArea');
     if (displayArea) {
         // Create or get the pre element with code block
@@ -60,7 +105,6 @@ function displayJSON(data) {
             preElement = document.createElement('pre');
             preElement.id = 'jsonDisplay';
             const codeElement = document.createElement('code');
-            // Use textContent to automatically escape HTML
             codeElement.className = 'language-json hljs-custom';
             preElement.appendChild(codeElement);
             if (oldElement) {
@@ -72,7 +116,6 @@ function displayJSON(data) {
 
         // Format and display the JSON
         const formattedJson = JSON.stringify(data, null, 2);
-        // Use textContent instead of innerHTML to automatically escape HTML
         const codeElement = preElement.querySelector('code');
         codeElement.textContent = formattedJson;
         
@@ -83,12 +126,10 @@ function displayJSON(data) {
                     language: 'json',
                     ignoreIllegals: true
                 });
-                // Use innerHTML only after highlight.js has processed the content
                 codeElement.innerHTML = result.value;
                 codeElement.classList.add('hljs-custom');
             } catch (error) {
                 console.error('Error applying syntax highlighting:', error);
-                // Fallback to plain text if highlighting fails
                 codeElement.textContent = formattedJson;
             }
         }
@@ -102,8 +143,20 @@ export function appendToLogs(message) {
     if (!logsContainer) return;
     
     const logElement = document.createElement('p');
-    logElement.textContent = `${new Date().toISOString()} - ${message}`;
+    logElement.className = 'log-item';
+    
+    // Consistent date formatting for logs
+    const timestamp = new Date().toLocaleTimeString();
+    logElement.textContent = `[${timestamp}] ${message}`;
+    
+    // Prepend to show newest logs at the top
     logsContainer.insertBefore(logElement, logsContainer.firstChild);
+    
+    // Remove placeholder if present
+    const placeholder = logsContainer.querySelector('.log-placeholder');
+    if (placeholder) {
+        placeholder.remove();
+    }
 }
 
 /**
@@ -124,8 +177,20 @@ class OrionLDClient {
         // Set default headers
         this.headers = {
             "Content-Type": "application/ld+json",
-            "Accept": "application/json"
+            "Accept": "application/json",
+            // Add cache control to prevent caching issues with auth
+            "Cache-Control": "no-cache, no-store, must-revalidate",
+            "Pragma": "no-cache"
         };
+        
+        // Add Authorization header if token is available (for APIs that need it)
+        const token = localStorage.getItem('auth_token') || localStorage.getItem('access_token');
+        if (token) {
+            this.headers['Authorization'] = `Bearer ${token}`;
+            console.log('Added Authorization header with token');
+        } else {
+            console.log('No token available for Authorization header');
+        }
         
         // Add tenant header if available and not "default" or "Synchro"
         const tenantInputValue = document.getElementById('tenantname')?.value;
@@ -139,17 +204,19 @@ class OrionLDClient {
             console.log(`Not sending NGSILD-Tenant header for tenant: ${tenantName || 'none'}`);
         }
         
-        // Authentication is handled via HTTP-only cookies by the backend
-        // No need to add Authorization header
-        
         console.log("OrionLDClient initialized with headers:", this.headers);
         console.log("Using base URL:", this.baseURL);
     }
 
     // Core request method
     async makeRequest(endpoint, method, body = null) {
-        store.setLoading(true);
-        store.setError(null);
+        // Safely access store with fallback if it's not initialized yet
+        if (store) {
+            store.setLoading(true);
+            store.setError(null);
+        } else {
+            console.log('Store not initialized yet, skipping loading state update');
+        }
 
         try {
             console.log(`Making ${method} request to: ${endpoint}`);
@@ -161,12 +228,16 @@ class OrionLDClient {
                 console.log("Request body:", body);
                 appendToLogs(`Request body: ${JSON.stringify(body).substring(0, 100)}${JSON.stringify(body).length > 100 ? '...' : ''}`);
             }
+
+            // Before making the request, check if we need to refresh the token from localStorage
+            this.refreshHeadersFromLocalStorage();
             
             const response = await fetch(endpoint, {
                 method,
                 headers: this.headers,
                 body: body ? JSON.stringify(body) : null,
-                credentials: 'include'
+                credentials: 'include', // Include cookies for auth with SameSite=Lax settings
+                cache: 'no-store' // Prevent caching to avoid stale auth state
             });
             
             console.log(`Response status: ${response.status} ${response.statusText}`);
@@ -185,10 +256,30 @@ class OrionLDClient {
                 
                 try {
                     const refreshResponse = await fetch('/api/auth/refresh', {
-                        credentials: 'include'
+                        credentials: 'include',
+                        cache: 'no-store',
+                        headers: {
+                            'Cache-Control': 'no-cache, no-store, must-revalidate',
+                            'Pragma': 'no-cache'
+                        }
                     });
                     
                     if (refreshResponse.ok) {
+                        // Try to get the new token from the response
+                        try {
+                            const refreshData = await refreshResponse.json();
+                            if (refreshData.access_token) {
+                                // Store the refreshed token
+                                localStorage.setItem('access_token', refreshData.access_token);
+                                localStorage.setItem('auth_token', refreshData.access_token);
+                                
+                                // Update Authorization header
+                                this.headers['Authorization'] = `Bearer ${refreshData.access_token}`;
+                            }
+                        } catch (e) {
+                            console.log('Token refresh succeeded but did not return a new token');
+                        }
+                        
                         appendToLogs('Token refreshed, retrying request');
                         return this.makeRequest(endpoint, method, body);
                     } else {
@@ -216,7 +307,7 @@ class OrionLDClient {
                     // Some successful operations (like DELETE) may return empty responses
                     console.log("Empty response received with successful status code");
                     appendToLogs("Operation completed successfully (empty response)");
-                    store.setLoading(false);
+                    if (store) store.setLoading(false);
                     return { status: 'success', message: 'Operation completed successfully' };
                 } else {
                     // Empty error response
@@ -260,7 +351,7 @@ class OrionLDClient {
             try {
                 const data = JSON.parse(responseText);
                 console.log("Response data:", data);
-                store.setLoading(false);
+                if (store) store.setLoading(false);
                 return data;
             } catch (parseError) {
                 // If response is not valid JSON, log the actual response content for debugging
@@ -280,49 +371,83 @@ class OrionLDClient {
             
             if (isNetworkError) {
                 appendToLogs(`Network error accessing ${endpoint}: ${errorMessage}`);
-                store.setError(`Network error: Unable to connect to the server. Check your connection and CORS settings.`);
+                if (store) store.setError(`Network error: Unable to connect to the server. Check your connection and CORS settings.`);
                 this.showErrorMessage(`Network error: Unable to connect to the server. The service may be unavailable or there might be a connectivity issue.`);
             } else {
                 appendToLogs(`Error in request: ${errorMessage}`);
-                store.setError(errorMessage);
+                if (store) store.setError(errorMessage);
                 this.showErrorMessage(`Error: ${errorMessage}`);
             }
             
             return { error: errorMessage, status: 'error' };
         } finally {
-            store.setLoading(false);
+            if (store) store.setLoading(false);
+        }
+    }
+    
+    // Helper method to refresh headers from localStorage
+    refreshHeadersFromLocalStorage() {
+        // Update Authorization header if token is available
+        const token = localStorage.getItem('auth_token') || localStorage.getItem('access_token');
+        if (token) {
+            this.headers['Authorization'] = `Bearer ${token}`;
+        }
+        
+        // Update tenant header if needed
+        const tenantInputValue = document.getElementById('tenantname')?.value;
+        const tenantName = tenantInputValue || localStorage.getItem('tenantName');
+        
+        if (tenantName && tenantName.toLowerCase() !== "default" && tenantName !== "Synchro") {
+            this.headers['NGSILD-Tenant'] = tenantName;
+        } else if (this.headers['NGSILD-Tenant']) {
+            delete this.headers['NGSILD-Tenant'];
         }
     }
     
     // Helper method to show error messages in the UI
     showErrorMessage(message) {
-        // Display in JSON display area
-        const jsonDisplay = document.getElementById('jsonDisplay');
-        if (jsonDisplay) {
-            jsonDisplay.value = JSON.stringify({
+        // Always use the main editor for displaying error information with timestamp
+        if (window.mainEditor && typeof window.mainEditor.setValue === 'function') {
+            window.mainEditor.setValue(JSON.stringify({
                 error: message,
                 timestamp: new Date().toISOString(),
                 hint: "Check browser console (F12) for more details"
-            }, null, 2);
-        }
-        
-        // Also try to display in the fallbackUI element if available
-        const fallbackUI = document.getElementById('fallbackUI');
-        if (fallbackUI) {
-            const errorDiv = document.createElement('div');
-            errorDiv.className = 'network-error';
-            errorDiv.innerHTML = `<strong>Error:</strong> ${message}<br><small>Check browser console (F12) for technical details.</small>`;
+            }, null, 2));
             
-            // Clear previous error messages
-            fallbackUI.innerHTML = '';
-            fallbackUI.appendChild(errorDiv);
+            // Also log the error in the request logs
+            appendToLogs(`Error: ${message}`);
+        } else {
+            // Fallback display methods if main editor is not available
+            const jsonDisplay = document.getElementById('jsonDisplay');
+            if (jsonDisplay) {
+                jsonDisplay.value = JSON.stringify({
+                    error: message,
+                    timestamp: new Date().toISOString(),
+                    hint: "Check browser console (F12) for more details"
+                }, null, 2);
+            }
             
-            // Auto-remove after 15 seconds
-            setTimeout(() => {
-                if (fallbackUI.contains(errorDiv)) {
-                    errorDiv.remove();
-                }
-            }, 15000);
+            // Also try to display in the fallbackUI element if available
+            const fallbackUI = document.getElementById('fallbackUI');
+            if (fallbackUI) {
+                const errorDiv = document.createElement('div');
+                errorDiv.className = 'network-error';
+                errorDiv.innerHTML = `<strong>Error:</strong> ${message}<br><small>Check browser console (F12) for technical details.</small>`;
+                
+                // Clear previous error messages
+                fallbackUI.innerHTML = '';
+                fallbackUI.appendChild(errorDiv);
+                
+                // Auto-remove after 15 seconds
+                setTimeout(() => {
+                    if (fallbackUI.contains(errorDiv)) {
+                        errorDiv.remove();
+                    }
+                }, 15000);
+            }
+            
+            // Make sure it also appears in logs
+            appendToLogs(`Error: ${message}`);
         }
     }
 
@@ -536,7 +661,7 @@ export class OrionLDSearchClient extends OrionLDClient {
 
     async getAllEntityInformation() {
         try {
-            store.setLoading(true);
+            if (store) store.setLoading(true);
             const [types, attributes, subscriptions, relationships] = await Promise.all([
                 this.getAllTypes(),
                 this.getAllAttributes(),
@@ -548,7 +673,7 @@ export class OrionLDSearchClient extends OrionLDClient {
             appendToLogs(`Error fetching entity information: ${error.message}`);
             throw error;
         } finally {
-            store.setLoading(false);
+            if (store) store.setLoading(false);
         }
     }
 }
@@ -582,10 +707,26 @@ export async function processGetData(endpoint, defaultId) {
             appendToLogs(`Successfully retrieved entity ${entityId}`);
         }
 
-        displayJSON(data);
+        // Use the main JSON editor to display results if available
+        if (window.mainEditor) {
+            window.mainEditor.setValue(JSON.stringify(data, null, 2));
+            console.log('Updated main editor with GET response data');
+        } else {
+            // Fallback to displayJSON if mainEditor is not available
+            displayJSON(data);
+            console.warn('mainEditor not available, using fallback displayJSON function');
+        }
     } catch (error) {
         console.error('Error:', error);
         appendToLogs(`Error: ${error.message}`);
+        
+        // Display error in main editor if available
+        if (window.mainEditor) {
+            window.mainEditor.setValue(JSON.stringify({
+                error: error.message,
+                timestamp: new Date().toISOString()
+            }, null, 2));
+        }
     }
 }
 
@@ -715,13 +856,45 @@ export async function loadEntityTypes() {
 // Filter entities by type
 export async function filterEntitiesByType(type) {
     try {
+        console.log(`filterEntitiesByType called in api.js with type: ${type}`);
         const searchClient = new OrionLDSearchClient();
         const entities = await searchClient.getEntitiesByType(type);
-        displayJSON(entities);
+        
+        // Make sure we're using the correct display method with a more explicit approach
+        if (window.mainEditor && typeof window.mainEditor.setValue === 'function') {
+            // First convert to string with proper formatting
+            const jsonString = JSON.stringify(entities, null, 2);
+            // Then set the value in the editor
+            window.mainEditor.setValue(jsonString);
+            console.log(`Successfully displayed ${entities.length} entities of type "${type}" in mainEditor`);
+        } else {
+            // Fallback to the utility function if mainEditor is not available
+            displayJSON(entities);
+            console.warn('mainEditor not available in filterEntitiesByType, using fallback displayJSON');
+        }
+        
+        // Also update the entity GET results editor if it exists (for consistency)
+        if (window.getResultsEditor && typeof window.getResultsEditor.setValue === 'function') {
+            window.getResultsEditor.setValue(JSON.stringify(entities, null, 2));
+            console.log('Updated getResultsEditor with entity data');
+        }
+        
         appendToLogs(`Retrieved ${entities.length} entities of type "${type}"`);
+        return entities;
     } catch (error) {
         console.error('Error fetching entities by type:', error);
         appendToLogs(`Error: ${error.message}`);
+        
+        // Display error in editor
+        if (window.mainEditor) {
+            window.mainEditor.setValue(JSON.stringify({
+                error: error.message,
+                timestamp: new Date().toISOString(),
+                entityType: type
+            }, null, 2));
+        }
+        
+        throw error;
     }
 }
 
@@ -734,17 +907,52 @@ if (typeof window !== 'undefined') {
     window.searchEntities = searchEntities;
     window.loadEntityTypes = loadEntityTypes;
     window.filterEntitiesByType = filterEntitiesByType;
-    window.handleEntityGet = function(templatePath) {
-        fetch(templatePath)
-            .then(response => response.text())
-            .then(data => {
-                document.getElementById('displayArea').innerHTML = data;
-            })
-            .catch(error => {
-                console.error('Error loading template:', error);
-                document.getElementById('displayArea').innerHTML = '<p>Error loading content. Please try again.</p>';
-            });
-    };
+    
+    // Only set handleEntityGet if it's not already defined
+    // This prevents overriding the version in index.html
+    if (typeof window.handleEntityGet !== 'function') {
+        window.handleEntityGet = function(templatePath) {
+            if (!templatePath || typeof templatePath !== 'string') {
+                console.error('API handleEntityGet: Invalid template path:', templatePath);
+                return;
+            }
+            
+            console.log('API handleEntityGet called with:', templatePath);
+            
+            fetch(templatePath)
+                .then(response => {
+                    if (!response.ok) {
+                        throw new Error(`Failed to fetch ${templatePath}: ${response.status} ${response.statusText}`);
+                    }
+                    return response.text();
+                })
+                .then(data => {
+                    const displayArea = document.getElementById('displayArea');
+                    if (displayArea) {
+                        displayArea.innerHTML = data;
+                    } else {
+                        console.error('Display area element not found');
+                    }
+                })
+                .catch(error => {
+                    console.error('Error loading template:', error);
+                    const displayArea = document.getElementById('displayArea');
+                    if (displayArea) {
+                        displayArea.innerHTML = `<p>Error loading content: ${error.message}</p>`;
+                    }
+                });
+        };
+    } else {
+        console.log('handleEntityGet already defined, skipping definition in api.js');
+    }
+
+    // Check if handleGetQuery is already defined globally before defining it
+    if (typeof window.handleGetQuery !== 'function') {
+        console.log('handleGetQuery defined in api.js will not be used since it exists in index.html');
+        // Do not define a placeholder implementation here to avoid conflicts
+    } else {
+        console.log('handleGetQuery already defined in index.html, skipping definition in api.js');
+    }
 }
 
 export default OrionLDClient;

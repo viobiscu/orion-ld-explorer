@@ -109,16 +109,45 @@ class UIManager {
     }
 
     /**
-     * Update content display area
+     * Update content display area - always use the main editor
      */
     updateDisplay(content) {
-        const displayArea = document.getElementById("displayArea");
-        if (!displayArea) return;
-        
-        if (typeof content === 'object') {
-            content = JSON.stringify(content, null, 2);
+        // Ensure we use the main editor for displaying content
+        if (window.mainEditor && typeof window.mainEditor.setValue === 'function') {
+            // Convert content to string if it's an object
+            if (typeof content === 'object') {
+                content = JSON.stringify(content, null, 2);
+            }
+            window.mainEditor.setValue(content);
+        } else {
+            // Fallback if main editor is not available
+            const displayArea = document.getElementById("displayArea");
+            if (!displayArea) return;
+            
+            if (typeof content === 'object') {
+                content = JSON.stringify(content, null, 2);
+            }
+            
+            // Check if there's already a jsonDisplay element
+            let jsonDisplay = document.getElementById('jsonDisplay');
+            if (!jsonDisplay) {
+                jsonDisplay = document.createElement('pre');
+                jsonDisplay.id = 'jsonDisplay';
+                const codeElement = document.createElement('code');
+                codeElement.className = 'language-json hljs-custom';
+                jsonDisplay.appendChild(codeElement);
+                displayArea.innerHTML = '';
+                displayArea.appendChild(jsonDisplay);
+                
+                // Log that we're using fallback
+                console.warn('Main editor not available, using fallback display method');
+            }
+            
+            const codeElement = jsonDisplay.querySelector('code');
+            if (codeElement) {
+                codeElement.textContent = content;
+            }
         }
-        displayArea.innerHTML = `<pre>${content}</pre>`;
     }
 
     /**

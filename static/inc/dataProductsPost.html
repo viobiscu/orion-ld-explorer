@@ -1,47 +1,163 @@
 <div class="form-container">
   <div class="form-header">
     <h2>Create Data Product</h2>
-    <button class="method-button post-button" onclick="createDataProduct(document.getElementById('dataProductJsonInput').value)">POST</button>
+    <button class="method-button post-button" onclick="postDataProduct()">POST</button>
   </div>
   <div class="form-body">
-    <textarea id="dataProductJsonInput" class="textarea" style="width: 100%; height: 500px; resize: both; overflow: auto;">
-{
-  "id": "dp-example-001",
-  "name": "Example Data Product",
-  "description": "This is a sample data product for demonstration",
-  "version": "1.0.0",
-  "owner": "example-user",
-  "createdAt": "2025-05-09T10:00:00Z",
-  "updatedAt": "2025-05-09T10:00:00Z",
-  "status": "active",
-  "dataSchema": {
-    "type": "object",
-    "properties": {
-      "temperature": {
-        "type": "number",
-        "description": "Temperature value in Celsius"
-      },
-      "humidity": {
-        "type": "number",
-        "description": "Humidity percentage"
-      },
-      "timestamp": {
-        "type": "string",
-        "format": "date-time",
-        "description": "Measurement timestamp"
-      }
-    },
-    "required": ["temperature", "humidity", "timestamp"]
-  },
-  "tags": ["environment", "sensors", "temperature"],
-  "accessControl": {
-    "readAccess": ["public"],
-    "writeAccess": ["owner", "admin"]
-  }
-}
-    </textarea>
+    <div id="jsonEditorContainer"></div>
   </div>
   <div class="form-footer">
     <small>This form creates a new Data Product in the system.</small>
   </div>
 </div>
+
+<script>
+  // Add a non-module version of the JsonEditor script to make it globally available
+  (function() {
+    // Create a script element for the JsonEditor (as a non-module)
+    const script = document.createElement('script');
+    script.src = '/js/jsonEditor.js';
+    script.type = 'text/javascript'; // Not module
+    
+    // Add the script to the header
+    document.head.appendChild(script);
+    
+    // Set a delay to ensure the script is loaded before initializing
+    setTimeout(initializeEditor, 200);
+    
+    function initializeEditor() {
+      // Initial JSON value for the data product
+      const initialJSON = {
+        "id": "dp-example-001",
+        "name": "Example Data Product",
+        "description": "This is a sample data product for demonstration",
+        "version": "1.0.0",
+        "owner": "example-user",
+        "createdAt": "2025-05-09T10:00:00Z",
+        "updatedAt": "2025-05-09T10:00:00Z",
+        "status": "active",
+        "dataSchema": {
+          "type": "object",
+          "properties": {
+            "temperature": {
+              "type": "number",
+              "description": "Temperature value in Celsius"
+            },
+            "humidity": {
+              "type": "number",
+              "description": "Humidity percentage"
+            },
+            "timestamp": {
+              "type": "string",
+              "format": "date-time",
+              "description": "Measurement timestamp"
+            }
+          },
+          "required": ["temperature", "humidity", "timestamp"]
+        },
+        "tags": ["environment", "sensors", "temperature"],
+        "accessControl": {
+          "readAccess": ["public"],
+          "writeAccess": ["owner", "admin"]
+        }
+      };
+      
+      // Check if JsonEditor is available
+      if (typeof window.JsonEditor !== 'function') {
+        console.error('JsonEditor component not found. Attempting to load it directly...');
+        
+        // Try a more direct approach to get the JsonEditor
+        fetch('/js/jsonEditor.js')
+          .then(response => response.text())
+          .then(code => {
+            // Execute the code directly
+            const scriptElement = document.createElement('script');
+            scriptElement.textContent = code;
+            document.body.appendChild(scriptElement);
+            
+            // Try initializing again after a short delay
+            setTimeout(() => {
+              if (typeof window.JsonEditor === 'function') {
+                console.log('JsonEditor successfully loaded directly');
+                createEditor(initialJSON);
+              } else {
+                showErrorMessage('Failed to load the JSON Editor component. Please refresh the page.');
+              }
+            }, 100);
+          })
+          .catch(error => {
+            console.error('Failed to load JsonEditor directly:', error);
+            showErrorMessage('Failed to load the JSON Editor component. Please refresh the page.');
+          });
+      } else {
+        console.log('JsonEditor is available, initializing editor');
+        createEditor(initialJSON);
+      }
+    }
+    
+    function createEditor(initialJSON) {
+      // Initialize the editor with the container ID and initial value
+      try {
+        window.editor = new JsonEditor({
+          containerId: 'jsonEditorContainer',
+          initialValue: JSON.stringify(initialJSON, null, 2),
+          height: 500,
+          resize: true,
+          onSave: function(value) {
+            // Save the content to localStorage for persistence
+            localStorage.setItem('dataProductPostJson', value);
+          }
+        });
+        
+        // Load saved content if available
+        const savedJson = localStorage.getItem('dataProductPostJson');
+        if (savedJson) {
+          window.editor.setValue(savedJson);
+        }
+        
+        console.log('Editor initialized successfully');
+      } catch (e) {
+        console.error('Error initializing editor:', e);
+        showErrorMessage('Error initializing editor: ' + e.message);
+      }
+    }
+    
+    function showErrorMessage(message) {
+      const errorDiv = document.createElement('div');
+      errorDiv.classList.add('network-error');
+      errorDiv.textContent = 'Error: ' + message;
+      document.getElementById('jsonEditorContainer').appendChild(errorDiv);
+    }
+  })();
+
+  // Function to post the data product
+  function postDataProduct() {
+    try {
+      console.log('POST button clicked, editor availability:', !!window.editor);
+      
+      if (!window.editor) {
+        throw new Error('JSON Editor not initialized. Please wait a moment and try again.');
+      }
+      
+      // Validate JSON before submitting
+      if (!window.editor.isValid()) {
+        alert('Invalid JSON. Please correct the format before submitting.');
+        return;
+      }
+      
+      // Format the JSON one last time to ensure proper formatting
+      window.editor.formatJson();
+      
+      // Get the JSON content
+      const jsonContent = window.editor.getValue();
+      
+      console.log('Creating data product with data:', jsonContent);
+      
+      // Call the API function to create the data product
+      createDataProduct(jsonContent);
+    } catch (error) {
+      console.error('Error creating data product:', error);
+      alert('Error: ' + error.message);
+    }
+  }
+</script>

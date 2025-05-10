@@ -16,6 +16,9 @@
     
     <link href="css/custom-highlight.css" rel="stylesheet"/>
     
+    <!-- Load the non-module version of JsonEditor first for global availability -->
+    <script src="js/jsonEditor.js"></script>
+    
     <script>
         // Create functions that will be needed by modules before they load
         window.passwordVisibility = {
@@ -34,7 +37,17 @@
             }
         };
 
-        function handleEntityGet(url) {
+        // Define handleEntityGet as a window function to avoid conflicts with modules
+        window.handleEntityGet = function(url) {
+            // Make sure url is a string to prevent /undefined requests
+            if (!url || typeof url !== 'string') {
+                console.error('handleEntityGet called with invalid URL:', url);
+                return;
+            }
+            
+            // Log for debugging
+            console.log('handleEntityGet called with URL:', url);
+            
             // Save current content if switching to color settings
             if (url === 'inc/colorSettings.html') {
                 const displayArea = document.getElementById('displayArea');
@@ -44,9 +57,333 @@
             }
             
             fetch(url)
-                .then(response => response.text())
-                .then(data => document.getElementById('displayArea').innerHTML = data);
-        }
+                .then(response => {
+                    if (!response.ok) {
+                        throw new Error(`Failed to fetch ${url}: ${response.status} ${response.statusText}`);
+                    }
+                    return response.text();
+                })
+                .then(data => {
+                    const displayArea = document.getElementById('displayArea');
+                    if (displayArea) {
+                        // First, set the HTML content
+                        displayArea.innerHTML = data;
+                        
+                        // Then extract and execute scripts
+                        const scriptTags = displayArea.getElementsByTagName('script');
+                        const scripts = Array.from(scriptTags).map(script => script.innerHTML).join('\n');
+                        
+                        if (scripts) {
+                            // Create a new script element for execution
+                            const scriptElement = document.createElement('script');
+                            scriptElement.textContent = scripts;
+                            document.body.appendChild(scriptElement);
+                        }
+                        
+                        // For entitiesGet.html, explicitly trigger loadSavedQueries function if it exists
+                        if (url === 'inc/entitiesGet.html') {
+                            // Small timeout to ensure the DOM is fully processed
+                            setTimeout(() => {
+                                if (typeof window.loadSavedQueries === 'function') {
+                                    console.log('Explicitly calling loadSavedQueries after loading entitiesGet.html');
+                                    window.loadSavedQueries();
+                                }
+                            }, 150);
+                        }
+                    } else {
+                        console.error('Display area element not found');
+                    }
+                })
+                .catch(error => {
+                    console.error('Error in handleEntityGet:', error);
+                    const displayArea = document.getElementById('displayArea');
+                    if (displayArea) {
+                        displayArea.innerHTML = `<p>Error loading content: ${error.message}</p>`;
+                    }
+                });
+        };
+
+        // Define filterEntitiesByType function to support GET by Type
+        window.filterEntitiesByType = function(entityType) {
+            console.log(`Filtering entities by type: ${entityType}`);
+            
+            try {
+                // Initialize the OrionLDClient
+                if (typeof OrionLDClient !== 'function') {
+                    console.error('OrionLDClient is not available');
+                    return Promise.reject(new Error('OrionLDClient is not available. Please refresh the page.'));
+                }
+                
+                const client = new OrionLDClient();
+                // Add consistent parameters to match the general query pattern (limit, offset, local)
+                const endpoint = `/api/ngsi-ld/v1/entities?type=${encodeURIComponent(entityType)}&limit=100&offset=0&local=true`;
+                
+                // Log the request
+                console.log(`Making GET request for entities of type: ${entityType}`);
+                if (typeof appendToLogs === 'function') {
+                    appendToLogs(`GET request for type: ${entityType}`);
+                }
+                
+                // Return a promise that fetches the entities
+                return fetch(endpoint, {
+                    method: 'GET',
+                    headers: client.headers,
+                    credentials: 'include'
+                })
+                .then(response => {
+                    if (!response.ok) {
+                        return response.text().then(text => {
+                            throw new Error(`Server responded with status ${response.status}: ${text}`);
+                        });
+                    }
+                    return response.json();
+                });
+            } catch (error) {
+                console.error('Error in filterEntitiesByType:', error);
+                return Promise.reject(error);
+            }
+        };
+
+        // Define handleGetQuery function to handle entity queries properly
+        // This function needs to be exposed globally as it's called by loaded HTML content
+        window.handleGetQuery = function(queryParams) {
+            console.log('DEBUG: handleGetQuery called in index.html with:', queryParams);
+            
+            try {
+                // Initialize the OrionLDClient
+                if (typeof OrionLDClient !== 'function') {
+                    console.error('OrionLDClient is not available');
+                    throw new Error('OrionLDClient is not available. Please refresh the page.');
+                }
+                
+                const client = new OrionLDClient();
+                
+                // Determine if this is an entity ID request or a query parameters request
+                let endpoint = '/api/ngsi-ld/v1/entities';
+                
+                // If the query starts with a slash, it's likely an entity ID with optional attributes
+                if (queryParams.startsWith('/')) {
+                    // Extract entity ID and any remaining parameters
+                    const parts = queryParams.substring(1).split('?');
+                    const entityId = parts[0];
+                    
+                    if (entityId) {
+                        // If it's a specific entity request
+                        endpoint = `/api/ngsi-ld/v1/entities/${entityId}`;
+                        
+                        // Add any query parameters if present
+                        if (parts.length > 1 && parts[1]) {
+                            endpoint += `?${parts[1]}`;
+                        }
+                    }
+                } else if (queryParams.startsWith('?')) {
+                    // It's a query parameter string, append it to the base endpoint
+                    endpoint = `/api/ngsi-ld/v1/entities${queryParams}`;
+                } else {
+                    // If no proper format is detected, show an error
+                    console.error('Invalid query format:', queryParams);
+                    if (window.mainEditor) {
+                        window.mainEditor.setValue(JSON.stringify({
+                            error: 'Invalid query format. Must start with ? for query parameters or / for entity ID.',
+                            example: '?type=Device or /urn:ngsi-ld:Device:001'
+                        }, null, 2));
+                    }
+                    return;
+                }
+                
+                // Check if this is a type query - if so, use the filterEntitiesByType function
+                // This prevents the double display issue
+                if (queryParams.includes('type=')) {
+                    const typeMatch = queryParams.match(/type=([^&]+)/);
+                    if (typeMatch && typeMatch[1]) {
+                        const entityType = decodeURIComponent(typeMatch[1]);
+                        console.log(`Type query detected (${entityType}), using optimized path`);
+                        
+                        // First clear any existing JSON display to prevent duplicates
+                        const jsonDisplay = document.getElementById('jsonDisplay');
+                        if (jsonDisplay) {
+                            jsonDisplay.remove();
+                        }
+                        
+                        // Show loading indicator
+                        const displayArea = document.getElementById('displayArea');
+                        if (displayArea) {
+                            const loadingDiv = document.createElement('div');
+                            loadingDiv.className = 'loading-indicator';
+                            loadingDiv.textContent = 'Loading data...';
+                            
+                            // Keep the form but add loading indicator
+                            const mainJsonEditor = document.getElementById('mainJsonEditorContainer');
+                            if (mainJsonEditor) {
+                                mainJsonEditor.style.display = 'none';
+                                displayArea.appendChild(loadingDiv);
+                            }
+                        }
+                        
+                        // Use the filterEntitiesByType function and manually display the result
+                        if (typeof window.filterEntitiesByType === 'function') {
+                            window.filterEntitiesByType(entityType)
+                                .then(result => {
+                                    // Remove loading indicator
+                                    const loadingIndicator = document.querySelector('.loading-indicator');
+                                    if (loadingIndicator) {
+                                        loadingIndicator.remove();
+                                    }
+                                    
+                                    // Show the JSON editor again if it was hidden
+                                    const mainJsonEditor = document.getElementById('mainJsonEditorContainer');
+                                    if (mainJsonEditor) {
+                                        mainJsonEditor.style.display = 'block';
+                                    }
+                                    
+                                    // Display result in the main editor
+                                    if (window.mainEditor) {
+                                        window.mainEditor.setValue(JSON.stringify(result, null, 2));
+                                        console.log(`Displayed ${result.length} entities of type "${entityType}" in the editor`);
+                                    }
+                                    
+                                    if (typeof appendToLogs === 'function') {
+                                        appendToLogs(`Retrieved ${result.length} entities of type "${entityType}"`);
+                                    }
+                                })
+                                .catch(error => {
+                                    // Remove loading indicator
+                                    const loadingIndicator = document.querySelector('.loading-indicator');
+                                    if (loadingIndicator) {
+                                        loadingIndicator.remove();
+                                    }
+                                    
+                                    // Show the JSON editor again if it was hidden
+                                    const mainJsonEditor = document.getElementById('mainJsonEditorContainer');
+                                    if (mainJsonEditor) {
+                                        mainJsonEditor.style.display = 'block';
+                                    }
+                                    
+                                    console.error('Error in type query:', error);
+                                    if (window.mainEditor) {
+                                        window.mainEditor.setValue(JSON.stringify({
+                                            error: error.message,
+                                            timestamp: new Date().toISOString()
+                                        }, null, 2));
+                                    }
+                                    
+                                    if (typeof appendToLogs === 'function') {
+                                        appendToLogs(`Error retrieving entities of type "${entityType}": ${error.message}`);
+                                    }
+                                });
+                            return; // Exit early, we're handling display separately
+                        }
+                    }
+                }
+                
+                // Show loading indicator
+                const displayArea = document.getElementById('displayArea');
+                if (displayArea) {
+                    const loadingDiv = document.createElement('div');
+                    loadingDiv.className = 'loading-indicator';
+                    loadingDiv.textContent = 'Loading data...';
+                    
+                    // Keep the form but add loading indicator
+                    const mainJsonEditor = document.getElementById('mainJsonEditorContainer');
+                    if (mainJsonEditor) {
+                        mainJsonEditor.style.display = 'none';
+                        displayArea.appendChild(loadingDiv);
+                    } else {
+                        displayArea.innerHTML = '<div class="loading-indicator">Loading data...</div>';
+                    }
+                }
+                
+                // Log the request
+                console.log(`Making GET request to: ${endpoint}`);
+                if (typeof appendToLogs === 'function') {
+                    appendToLogs(`GET request: ${endpoint}`);
+                }
+                
+                // Make the request
+                fetch(endpoint, {
+                    method: 'GET',
+                    headers: client.headers,
+                    credentials: 'include'
+                })
+                .then(response => {
+                    if (!response.ok) {
+                        return response.text().then(text => {
+                            throw new Error(`Server responded with status ${response.status}: ${text}`);
+                        });
+                    }
+                    return response.json();
+                })
+                .then(data => {
+                    // Remove loading indicator
+                    const loadingIndicator = document.querySelector('.loading-indicator');
+                    if (loadingIndicator) {
+                        loadingIndicator.remove();
+                    }
+                    
+                    // Show the JSON editor again if it was hidden
+                    const mainJsonEditor = document.getElementById('mainJsonEditorContainer');
+                    if (mainJsonEditor) {
+                        mainJsonEditor.style.display = 'block';
+                    }
+                    
+                    // Display data in the main JSON editor
+                    if (window.mainEditor) {
+                        window.mainEditor.setValue(JSON.stringify(data, null, 2));
+                        
+                        // ALSO update the entity GET results editor if it exists
+                        if (window.getResultsEditor) {
+                            window.getResultsEditor.setValue(JSON.stringify(data, null, 2));
+                        }
+                    } else if (displayArea) {
+                        // Fallback to a simple pre/code block if the JSON editor is not available
+                        displayArea.innerHTML = `<pre id="jsonDisplay"><code class="language-json">${JSON.stringify(data, null, 2)}</code></pre>`;
+                        
+                        // Apply syntax highlighting if available
+                        if (typeof hljs !== 'undefined') {
+                            document.querySelectorAll('pre code').forEach((block) => {
+                                hljs.highlightElement(block);
+                            });
+                        }
+                    }
+                    
+                    if (typeof appendToLogs === 'function') {
+                        appendToLogs(`Response received for ${endpoint}`);
+                    }
+                })
+                .catch(error => {
+                    console.error('Error in handleGetQuery:', error);
+                    
+                    // Remove loading indicator
+                    const loadingIndicator = document.querySelector('.loading-indicator');
+                    if (loadingIndicator) {
+                        loadingIndicator.remove();
+                    }
+                    
+                    // Show the JSON editor again if it was hidden
+                    const mainJsonEditor = document.getElementById('mainJsonEditorContainer');
+                    if (mainJsonEditor) {
+                        mainJsonEditor.style.display = 'block';
+                    }
+                    
+                    // Show error in main editor
+                    if (window.mainEditor) {
+                        window.mainEditor.setValue(JSON.stringify({
+                            error: error.message,
+                            endpoint: endpoint,
+                            timestamp: new Date().toISOString()
+                        }, null, 2));
+                    } else if (displayArea) {
+                        displayArea.innerHTML = `<p>Error: ${error.message}</p>`;
+                    }
+                    
+                    if (typeof appendToLogs === 'function') {
+                        appendToLogs(`Error in request: ${error.message}`);
+                    }
+                });
+            } catch (error) {
+                console.error('Unexpected error in handleGetQuery:', error);
+            }
+        };
     </script>
     
     <!-- Load our scripts with defer attribute and module type -->
@@ -58,11 +395,10 @@
     
     <!-- Added styles for json-editor -->
     <style>
-      #jsonDisplay {
+      #mainJsonEditorContainer {
         width: 100%;
         height: 500px;
         margin: 0;
-        overflow: auto;
       }
       
       /* Hide Subscriptions section */
@@ -75,6 +411,19 @@
         display: inline-block;
         margin-right: 5px;
       }
+
+      /* Info labels for user and tenant in header */
+      .info-label {
+        font-weight: 500;
+        margin-right: 10px;
+      }
+      
+      /* Container for tenant label and input */
+      .tenant-container {
+        display: flex;
+        align-items: center;
+        margin: 0 15px;
+      }
       
       /* Error message styling */
       .network-error {
@@ -84,6 +433,78 @@
         margin: 10px 0;
         border-radius: 5px;
         border: 1px solid #ffeeba;
+      }
+      
+      /* Token dialog styling */
+      #tokenDialog {
+        position: fixed;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        width: 80%;
+        max-width: 800px;
+        background: white;
+        box-shadow: 0 4px 8px rgba(0,0,0,0.2);
+        z-index: 1000;
+        border-radius: 4px;
+        padding: 20px;
+        display: none;
+      }
+      
+      #tokenDialog .dialog-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 15px;
+      }
+      
+      #tokenDialog .close-button {
+        background: none;
+        border: none;
+        font-size: 20px;
+        cursor: pointer;
+      }
+      
+      #tokenDialog .dialog-content {
+        max-height: 60vh;
+        overflow-y: auto;
+      }
+      
+      #dialogOverlay {
+        position: fixed;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background-color: rgba(0,0,0,0.5);
+        z-index: 999;
+        display: none;
+      }
+      
+      /* Loading indicator */
+      .loading-indicator {
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        height: 200px;
+        font-size: 1.2em;
+        color: #666;
+      }
+      
+      .loading-indicator::after {
+        content: '';
+        width: 1em;
+        height: 1em;
+        border: 0.2em solid currentColor;
+        border-right-color: transparent;
+        border-radius: 50%;
+        margin-left: 0.5em;
+        animation: spin 1s linear infinite;
+      }
+      
+      @keyframes spin {
+        0% { transform: rotate(0deg); }
+        100% { transform: rotate(360deg); }
       }
     </style>
 </head>
@@ -115,10 +536,14 @@
             <img alt="SensorsReport Logo" id="brandLogo" src="images/SensorsReport.jpg" loading="lazy"/>
         </div>
         <div class="user-info">
-            <span id="loginUser">User: Not logged in</span>
-            <span id="tenantName">Tenant:</span>
-            <input id="tenantname" placeholder="tenantname" type="text"/>
+            <span id="loginUser" class="info-label">User: Not logged in</span>
+            <div class="tenant-container">
+                <span id="tenantName" class="info-label">Tenant:</span>
+                <input id="tenantname" placeholder="tenantname" type="text"/>
+            </div>
             <button id="showTokenButton" class="method-button patch-button">Show Token</button>
+            <button id="clearAuthButton" class="method-button put-button">Clear Auth</button>
+            <button id="clearAllButton" class="method-button post-button">Clear All</button>
             <button id="logoutButton" class="method-button delete-button">Logout</button>
         </div>
     </header>
@@ -134,15 +559,11 @@
                 <ul class="nested">
                     <li>
                         <i class="fa-regular fa-file custom-icon"></i><span>Entities</span>
-                        <button class="method-button get-button" onclick="handleEntityGet('inc/entitiesGet.html')">GET</button>
-                    </li>
-                    <li>
-                        <i class="fa-regular fa-file custom-icon"></i><span>Entities</span>
                         <button class="method-button post-button" onclick="handleEntityGet('inc/entitiesPost.html')">POST</button>
                     </li>
                     <li>
                         <i class="fa-regular fa-file custom-icon"></i><span>Entities</span>
-                        <button class="method-button get-button" onclick="processGetData('/entities{entityId}', '/urn:ngsi-ld:???')">GET</button>
+                        <button class="method-button get-button" onclick="handleEntityGet('inc/entitiesGet.html')">GET</button>
                     </li>
                     <li>
                         <i class="fa-regular fa-file custom-icon"></i><span>Entities</span>
@@ -209,7 +630,7 @@
                 <li class="treeview-item expandable">
                     <i class="fa-regular fa-folder-closed custom-icon"></i><span>Relationships</span>
                 </li>
-                <ul class="nested">
+                <!-- <ul class="nested">
                     <li>
                         <i class="fa-regular fa-file custom-icon"></i><span>Get my Parents</span>
                         <button class="method-button get-button" onclick="processGetData('/relationships{relationshipId}', '/urn:ngsi-ld:???')">GET</button>
@@ -226,7 +647,7 @@
                         <i class="fa-regular fa-file custom-icon"></i><span>Relationships</span>
                         <button class="method-button delete-button" onclick="processDeleteData('/relationships{relationshipId}', '/urn:ngsi-ld:???')">DELETE</button>
                     </li>
-                </ul>
+                </ul> -->
 
                 <li class="treeview-item">
                     <i class="fa-regular fa-file custom-icon"></i>
@@ -249,7 +670,7 @@
         <!-- Content Area -->
         <main id="contentArea">
             <div id="displayArea">
-                <textarea id="jsonDisplay" style="width:100%; height:500px;" placeholder="JSON will appear here..."></textarea>
+                <div id="mainJsonEditorContainer"></div>
             </div>
             <div id="fallbackUI"></div>
             <!-- Logs Section -->
@@ -262,6 +683,288 @@
             </div>
         </main>
     </div>
+    
+    <!-- Comment out the old token dialog markup since we're using the one in auth-backend.js -->
+    <!-- <div id="dialogOverlay"></div>
+    <div id="tokenDialog">
+        <div class="dialog-header">
+            <h3>Authentication Token</h3>
+            <button class="close-button" onclick="closeTokenDialog()">&times;</button>
+        </div>
+        <div class="dialog-content">
+            <div id="tokenEditorContainer"></div>
+        </div>
+    </div> -->
+    
+    <script>
+        // Initialize the main JSON editor when the page loads
+        document.addEventListener('DOMContentLoaded', function() {
+            // Initialize the main editor
+            initializeMainEditor();
+            
+            // Setup token dialog
+            setupTokenButton();
+            
+            // Setup Clear Auth and Clear All buttons
+            setupClearButtons();
+        });
+        
+        // Function to set up the Clear Auth and Clear All buttons
+        function setupClearButtons() {
+            // Set up Clear Auth button
+            const clearAuthButton = document.getElementById('clearAuthButton');
+            if (clearAuthButton) {
+                clearAuthButton.addEventListener('click', function() {
+                    clearAuthData();
+                });
+            }
+            
+            // Set up Clear All button
+            const clearAllButton = document.getElementById('clearAllButton');
+            if (clearAllButton) {
+                clearAllButton.addEventListener('click', function() {
+                    clearAllData();
+                });
+            }
+        }
+        
+        // Function to clear authentication data
+        function clearAuthData() {
+            // Remove authentication-related items from localStorage
+            localStorage.removeItem('auth_token');
+            localStorage.removeItem('user_info');
+            localStorage.removeItem('login_timestamp');
+            
+            // Update the UI to reflect that the user is logged out
+            const loginUserSpan = document.getElementById('loginUser');
+            if (loginUserSpan) {
+                loginUserSpan.textContent = 'User: Not logged in';
+            }
+            
+            // Log the action
+            console.log('Authentication data cleared');
+            if (typeof appendToLogs === 'function') {
+                appendToLogs('Authentication data cleared');
+            }
+            
+            // Show a message in the editor
+            if (window.mainEditor) {
+                window.mainEditor.setValue(JSON.stringify({
+                    message: "Authentication data cleared",
+                    status: "success",
+                    timestamp: new Date().toISOString()
+                }, null, 2));
+            }
+            
+            // Optionally reload the page to ensure all auth-dependent components are reset
+            if (confirm('Authentication data cleared. Would you like to reload the page to complete the logout process?')) {
+                window.location.reload();
+            }
+        }
+        
+        // Function to clear all localStorage data
+        function clearAllData() {
+            // Create a backup of non-auth data if user wants to keep it
+            const confirm_clear = confirm('This will clear ALL local storage data, including saved queries, settings, and authentication. Continue?');
+            
+            if (confirm_clear) {
+                // Clear all localStorage data
+                localStorage.clear();
+                
+                // Log the action
+                console.log('All localStorage data cleared');
+                if (typeof appendToLogs === 'function') {
+                    appendToLogs('All localStorage data cleared');
+                }
+                
+                // Show a message in the editor
+                if (window.mainEditor) {
+                    window.mainEditor.setValue(JSON.stringify({
+                        message: "All localStorage data cleared",
+                        status: "success",
+                        timestamp: new Date().toISOString()
+                    }, null, 2));
+                }
+                
+                // Reload the page to reset all components
+                if (confirm('All data cleared. Reload the page now?')) {
+                    window.location.reload();
+                }
+            }
+        }
+        
+        function initializeMainEditor() {
+            if (typeof JsonEditor !== 'function') {
+                console.error('JsonEditor not available. Please reload the page.');
+                return;
+            }
+            
+            try {
+                // Check if the main editor already exists (initialized by AppInitializer)
+                if (window.mainEditor) {
+                    console.log('Main JSON editor already initialized by AppInitializer, skipping duplicate initialization');
+                    
+                    // Setup global function to update the main display
+                    setupUpdateMainDisplayFunction();
+                    return;
+                }
+                
+                // Create the main editor instance only if it doesn't exist
+                console.log('Creating main JSON editor from index.html (fallback)');
+                window.mainEditor = new JsonEditor({
+                    containerId: 'mainJsonEditorContainer',
+                    initialValue: JSON.stringify({ 
+                        message: "Welcome to Orion-LD Explorer",
+                        instructions: "Select an operation from the sidebar to get started."
+                    }, null, 2),
+                    height: 500,
+                    resize: true
+                });
+                
+                console.log('Main JSON editor initialized from index.html');
+                
+                // Setup global function to update the main display
+                setupUpdateMainDisplayFunction();
+            } catch (e) {
+                console.error('Error initializing main JSON editor:', e);
+            }
+        }
+        
+        // Extracted the updateMainDisplay function setup to a separate function
+        function setupUpdateMainDisplayFunction() {
+            // Setup global function to update the main display
+            window.updateMainDisplay = function(json) {
+                if (!window.mainEditor) {
+                    console.error('Main editor not initialized');
+                    return;
+                }
+                
+                try {
+                    // Format the JSON if it's a string
+                    if (typeof json === 'string') {
+                        try {
+                            // Try to parse it as JSON
+                            const parsed = JSON.parse(json);
+                            json = JSON.stringify(parsed, null, 2);
+                        } catch (e) {
+                            // If it's not valid JSON, just use it as is
+                            console.warn('Invalid JSON provided to updateMainDisplay:', e);
+                        }
+                    } else if (typeof json === 'object') {
+                        // Convert object to formatted JSON string
+                        json = JSON.stringify(json, null, 2);
+                    }
+                    
+                    // Update the editor
+                    window.mainEditor.setValue(json);
+                    console.log('Main display updated');
+                } catch (e) {
+                    console.error('Error updating main display:', e);
+                }
+            };
+        }
+        
+        function setupTokenButton() {
+            const showTokenButton = document.getElementById('showTokenButton');
+            if (showTokenButton) {
+                showTokenButton.addEventListener('click', function() {
+                    showTokenDialog();
+                });
+            }
+        }
+        
+        function showTokenDialog() {
+            // Check if AuthBackend is already available
+            if (typeof window.AuthBackend !== 'undefined' && typeof window.AuthBackend.showToken === 'function') {
+                console.log('Using showToken from auth-backend.js');
+                window.AuthBackend.showToken();
+                return;
+            }
+            
+            console.log('AuthBackend.showToken is not available - waiting for module to load');
+            
+            // Implement a more robust retry mechanism with multiple attempts
+            let attempts = 0;
+            const maxAttempts = 5;
+            const retryInterval = 500; // 500ms between attempts
+            
+            const tryShowToken = function() {
+                attempts++;
+                if (typeof window.AuthBackend !== 'undefined' && typeof window.AuthBackend.showToken === 'function') {
+                    console.log(`AuthBackend.showToken available after ${attempts} attempts`);
+                    window.AuthBackend.showToken();
+                } else if (attempts < maxAttempts) {
+                    console.log(`Retry attempt ${attempts}/${maxAttempts} for AuthBackend.showToken`);
+                    setTimeout(tryShowToken, retryInterval);
+                } else {
+                    console.error(`AuthBackend.showToken still not available after ${maxAttempts} attempts`);
+                    
+                    // Create fallback token display
+                    const token = localStorage.getItem('access_token') || localStorage.getItem('auth_token');
+                    if (token) {
+                        alert('Token is available but the display functionality is not ready. Using simple display instead.');
+                        if (window.mainEditor) {
+                            window.mainEditor.setValue(JSON.stringify({
+                                message: "Authentication Token (Simple View)",
+                                token_preview: token.substring(0, 15) + '...' + token.substring(token.length - 10),
+                                note: "This is a simplified view. The full token viewer is not available."
+                            }, null, 2));
+                        }
+                    } else {
+                        alert('Token display functionality is not available and no token was found in localStorage.');
+                    }
+                }
+            };
+            
+            // Start the retry process
+            tryShowToken();
+        }
+        
+        // OrionLDClient class for making API requests
+        class OrionLDClient {
+            constructor() {
+                this.baseUrl = '';  // Base URL is relative to allow for different deployments
+                this.headers = {
+                    'Content-Type': 'application/json',
+                    'Accept': 'application/json'
+                };
+                
+                // Add authentication token if available
+                const token = localStorage.getItem('auth_token');
+                if (token) {
+                    this.headers['Authorization'] = `Bearer ${token}`;
+                }
+                
+                // Add tenant header if available
+                const tenant = document.getElementById('tenantname')?.value;
+                if (tenant) {
+                    this.headers['NGSILD-Tenant'] = tenant;
+                }
+            }
+        }
+        
+        // Function to append logs to the log container
+        function appendToLogs(message) {
+            const logsContainer = document.getElementById('request-logs');
+            if (logsContainer) {
+                const logItem = document.createElement('p');
+                logItem.className = 'log-item';
+                
+                // Add timestamp
+                const timestamp = new Date().toLocaleTimeString();
+                logItem.textContent = `[${timestamp}] ${message}`;
+                
+                // Prepend to show newest logs at the top
+                logsContainer.insertBefore(logItem, logsContainer.firstChild);
+                
+                // Remove placeholder if present
+                const placeholder = logsContainer.querySelector('.log-placeholder');
+                if (placeholder) {
+                    placeholder.remove();
+                }
+            }
+        }
+    </script>
 </body>
 
 </html>
