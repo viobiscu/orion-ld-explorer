@@ -240,102 +240,53 @@
     const container = document.getElementById('jsonEditorContainer');
     container.innerHTML = '';
     
-    // For GET and DELETE, we need to add an entity ID input field
-    if (['get', 'delete'].includes(currentMode)) {
-      const idInputSection = document.createElement('div');
-      idInputSection.className = 'entity-id-section';
-      
-      const inputLabel = document.createElement('label');
-      inputLabel.htmlFor = 'entityIdInput';
-      inputLabel.textContent = currentMode === 'get' ? 'Entity ID or Query:' : 'Entity ID:';
-      inputLabel.style.fontWeight = 'bold';
-      inputLabel.style.display = 'block';
-      inputLabel.style.marginBottom = '5px';
-      
-      const idInput = document.createElement('input');
-      idInput.type = 'text';
-      idInput.id = 'entityIdInput';
-      idInput.className = 'entity-id-input';
-      idInput.placeholder = currentMode === 'get' 
-        ? 'urn:ngsi-ld:Entity:001 or ?type=Device&limit=10' 
-        : 'urn:ngsi-ld:Entity:001';
-      idInput.value = entityId;
-      
-      idInput.addEventListener('input', function() {
-        entityId = this.value;
-        localStorage.setItem(`entity${currentMode.charAt(0).toUpperCase() + currentMode.slice(1)}Id`, entityId);
-      });
-      
-      const actionButton = document.createElement('button');
-      actionButton.textContent = currentMode.toUpperCase();
-      actionButton.className = `method-button ${currentMode}-button`;
-      actionButton.style.marginTop = '10px';
-      
-      actionButton.addEventListener('click', function() {
-        if (!entityId) {
-          alert(`Entity ID or query is required for ${currentMode.toUpperCase()} operation.`);
-          return;
-        }
-        
-        if (currentMode === 'get') {
-          handleEntityGet(entityId);
-        } else if (currentMode === 'delete') {
-          if (confirm(`Are you sure you want to delete entity "${entityId}"? This action cannot be undone.`)) {
-            handleEntityDelete(entityId);
-          }
-        }
-      });
-      
-      idInputSection.appendChild(inputLabel);
-      idInputSection.appendChild(idInput);
-      idInputSection.appendChild(document.createElement('br'));
-      idInputSection.appendChild(actionButton);
-      
-      container.appendChild(idInputSection);
-    }
-    
     try {
-      // For GET and DELETE modes, we show a basic read-only text view
-      if (['get', 'delete'].includes(currentMode)) {
-        const jsonDisplay = document.createElement('pre');
-        jsonDisplay.className = 'json-display';
-        jsonDisplay.style.marginTop = '20px';
-        jsonDisplay.style.padding = '10px';
-        jsonDisplay.style.backgroundColor = '#f8f8f8';
-        jsonDisplay.style.border = '1px solid #ddd';
-        jsonDisplay.style.borderRadius = '4px';
-        jsonDisplay.style.maxHeight = '600px'; // Increased from 400px to 600px
-        jsonDisplay.style.height = 'calc(100vh - 250px)'; // Make it responsive to viewport height
-        jsonDisplay.style.overflowY = 'auto';
-        jsonDisplay.textContent = JSON.stringify(initialValue, null, 2);
-        
-        container.appendChild(jsonDisplay);
-        
-        // For GET mode, store the jsonDisplay element for later updates
-        if (currentMode === 'get') {
-          window.getResultsDisplay = jsonDisplay;
-        }
-      } else {
-        // Create a new JsonEditor instance with the appropriate mode
-        editorInstance = new JsonEditor({
-          containerId: 'jsonEditorContainer',
-          initialValue: JSON.stringify(initialValue, null, 2),
-          height: 500,
-          resize: true,
-          mode: currentMode,
-          entityId: entityId,
-          onEntityAction: handleEntityAction,
-          onSave: function(value) {
-            try {
-              const parsedValue = JSON.parse(value);
-              // Save to localStorage for persistence
-              localStorage.setItem(`entity${currentMode.charAt(0).toUpperCase() + currentMode.slice(1)}Json`, JSON.stringify(parsedValue));
-              console.log(`Saved ${currentMode} JSON to localStorage`);
-            } catch (e) {
-              console.error('Error saving JSON to localStorage:', e);
+      // Create a new JsonEditor instance with the appropriate mode for all operations
+      editorInstance = new JsonEditor({
+        containerId: 'jsonEditorContainer',
+        initialValue: JSON.stringify(initialValue, null, 2),
+        height: 500,
+        resize: true,
+        mode: currentMode,
+        entityId: entityId,
+        onApiOperation: function(operation, entityId, data) {
+          console.log(`API operation triggered: ${operation} on entity ${entityId}`);
+          
+          // Handle operations based on their type
+          if (operation === 'GET') {
+            console.log(`Handling GET operation for ${entityId}`);
+            return handleEntityGet(entityId);
+          } else if (operation === 'DELETE') {
+            console.log(`Handling DELETE operation for ${entityId}`);
+            if (confirm(`Are you sure you want to delete entity "${entityId}"? This action cannot be undone.`)) {
+              return handleEntityDelete(entityId);
             }
+          } else {
+            // For POST, PATCH, PUT, create a compatible action object
+            const action = {
+              mode: operation.toLowerCase(),
+              entityId: entityId,
+              data: data
+            };
+            console.log(`Handling ${operation} operation:`, action);
+            return handleEntityAction(action);
           }
-        });
+        },
+        onSave: function(value) {
+          try {
+            const parsedValue = JSON.parse(value);
+            // Save to localStorage for persistence
+            localStorage.setItem(`entity${currentMode.charAt(0).toUpperCase() + currentMode.slice(1)}Json`, JSON.stringify(parsedValue));
+            console.log(`Saved ${currentMode} JSON to localStorage`);
+          } catch (e) {
+            console.error('Error saving JSON to localStorage:', e);
+          }
+        }
+      });
+      
+      // Store a reference to the editor for GET results updates
+      if (currentMode === 'get') {
+        window.getResultsEditor = editorInstance;
       }
       
       console.log(`Initialized editor in ${currentMode} mode with entityId: ${entityId}`);
@@ -465,18 +416,48 @@
   
   // Update GET results display
   window.updateGetResults = function(results) {
-    if (window.getResultsDisplay) {
+    console.log('Updating GET results:', results);
+    
+    // Use the JsonEditor instance if available
+    if (window.getResultsEditor) {
       try {
-        // If results is already a string, use it directly, otherwise stringify it
+        if (typeof results === 'object') {
+          // If results is an object, we can set it directly
+          window.getResultsEditor.setValue(results);
+        } else if (typeof results === 'string') {
+          // If results is a string, try to parse it as JSON first
+          try {
+            const jsonData = JSON.parse(results);
+            window.getResultsEditor.setValue(jsonData);
+          } catch (e) {
+            // If parsing fails, treat it as a plain string
+            window.getResultsEditor.setValue(results);
+          }
+        } else {
+          // For other types, convert to string
+          window.getResultsEditor.setValue(String(results));
+        }
+        
+        console.log('Updated GET results in editor');
+      } catch (e) {
+        console.error('Error updating GET results in editor:', e);
+        showErrorMessage('Error displaying results: ' + e.message);
+      }
+    } else if (window.getResultsDisplay) {
+      // Fallback to the old display method if for some reason the editor isn't available
+      console.warn('Using legacy getResultsDisplay for updating results');
+      try {
         const displayText = typeof results === 'string' 
           ? results 
           : JSON.stringify(results, null, 2);
           
         window.getResultsDisplay.textContent = displayText;
       } catch (e) {
-        console.error('Error updating GET results:', e);
+        console.error('Error updating GET results in text display:', e);
         window.getResultsDisplay.textContent = 'Error displaying results: ' + e.message;
       }
+    } else {
+      console.error('No display method available for GET results');
     }
   };
   

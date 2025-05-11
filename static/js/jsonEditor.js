@@ -17,6 +17,11 @@ class JsonEditor {
      * @param {Function} [config.onChange] Callback when content changes
      * @param {Function} [config.onSave] Callback when content is saved/formatted
      * @param {Object} [config.schema] JSON Schema for validation
+     * @param {string} [config.operation] HTTP operation (GET, POST, PATCH, PUT, DELETE)
+     * @param {Function} [config.onApiOperation] Callback when API operation button is clicked
+     * @param {string} [config.entityTemplate] Template JSON for entity operations
+     * @param {string} [config.entityId] Entity ID for operations
+     * @param {boolean} [config.allowEntityIdEdit=true] Whether entity ID can be edited
      */
     constructor(config) {
         this.containerId = config.containerId;
@@ -39,12 +44,26 @@ class JsonEditor {
         this.debounceTimeoutId = null;
         this.MAX_VALIDATABLE_SIZE = 500000; // Similar to svelte-jsoneditor
         
+        // API operation related
+        this.operation = config.operation || null; // GET, POST, PATCH, PUT, DELETE
+        this.onApiOperation = config.onApiOperation || (() => {});
+        this.entityTemplate = config.entityTemplate || null;
+        this.entityId = config.entityId || '';
+        this.allowEntityIdEdit = config.allowEntityIdEdit !== false;
+        
+        // Network status tracking
+        this.isOnline = navigator.onLine;
+        this.setupNetworkListeners();
+        
         // Create the editor structure
         this.createEditorElements();
         
         // Set initial value if provided
         if (config.initialValue) {
             this.setValue(config.initialValue);
+        } else if (this.entityTemplate && (this.operation === 'PATCH' || this.operation === 'PUT')) {
+            // For PATCH or PUT operations, initialize with the template
+            this.setValue(this.entityTemplate);
         }
         
         // Set up event handlers
@@ -52,18 +71,19 @@ class JsonEditor {
     }
 
     /**
-     * Create the editor elements: editor container, textarea, display, toolbar
+     * Create the editor structure
      */
     createEditorElements() {
-        // Create the editor container
+        // Create the main editor container
         this.editorContainer = document.createElement('div');
         this.editorContainer.className = 'json-editor-container';
-        this.editorContainer.style.height = `${this.height}px`;
-        this.editorContainer.style.position = 'relative';
-        this.editorContainer.style.border = '1px solid #ddd';
+        this.editorContainer.style.width = '100%';
+        this.editorContainer.style.height = this.height + 'px';
+        this.editorContainer.style.border = '1px solid #ccc';
         this.editorContainer.style.borderRadius = '4px';
         this.editorContainer.style.overflow = 'hidden';
         
+        // Make the editor resizable if configured
         if (this.resizable) {
             this.editorContainer.style.resize = 'vertical';
         }
@@ -208,6 +228,44 @@ class JsonEditor {
             button.addEventListener('mouseout', () => button.style.backgroundColor = 'transparent');
         };
         
+        // Operation button style utility with colors
+        const operationButtonStyle = (button, color) => {
+            buttonStyle(button);
+            button.style.backgroundColor = color;
+            button.style.color = 'white';
+            button.style.border = 'none';
+            button.style.fontWeight = 'bold';
+            button.style.minWidth = '60px';
+            
+            button.addEventListener('mouseover', () => {
+                button.style.backgroundColor = shadeColor(color, -10); // Darken on hover
+            });
+            button.addEventListener('mouseout', () => {
+                button.style.backgroundColor = color;
+            });
+        };
+        
+        // Function to shade a color (darken or lighten)
+        const shadeColor = (color, percent) => {
+            let R = parseInt(color.substring(1,3), 16);
+            let G = parseInt(color.substring(3,5), 16);
+            let B = parseInt(color.substring(5,7), 16);
+
+            R = parseInt(R * (100 + percent) / 100);
+            G = parseInt(G * (100 + percent) / 100);
+            B = parseInt(B * (100 + percent) / 100);
+
+            R = (R < 255) ? R : 255;  
+            G = (G < 255) ? G : 255;  
+            B = (B < 255) ? B : 255;  
+
+            R = Math.max(0, R).toString(16).padStart(2, '0');
+            G = Math.max(0, G).toString(16).padStart(2, '0');
+            B = Math.max(0, B).toString(16).padStart(2, '0');
+
+            return `#${R}${G}${B}`;
+        };
+        
         // Create icon element
         const createIcon = (className) => {
             const icon = document.createElement('i');
@@ -243,7 +301,96 @@ class JsonEditor {
         buttonStyle(this.coloringButton);
         this.toolbar.appendChild(this.coloringButton);
         
-        // Create separator for Orion-LD specific buttons
+        // Create separator for API operation buttons
+        const apiSeparator = document.createElement('div');
+        apiSeparator.style.borderLeft = '1px solid #ccc';
+        apiSeparator.style.height = '20px';
+        apiSeparator.style.margin = '0 8px';
+        this.toolbar.appendChild(apiSeparator);
+        
+        // Create API operation UI based on operation type
+        if (this.operation) {
+            this.operation = this.operation.toUpperCase();
+            
+            // Add Entity ID input for GET, PATCH, PUT operations
+            if (['GET', 'PATCH', 'PUT'].includes(this.operation)) {
+                // Create entity ID section
+                const entityIdSection = document.createElement('div');
+                entityIdSection.style.display = 'flex';
+                entityIdSection.style.alignItems = 'center';
+                entityIdSection.style.marginRight = '10px';
+                
+                // Entity ID input
+                const entityIdInput = document.createElement('input');
+                entityIdInput.type = 'text';
+                entityIdInput.placeholder = 'Entity ID';
+                entityIdInput.value = this.entityId || '';
+                entityIdInput.style.padding = '4px 8px';
+                entityIdInput.style.borderRadius = '3px';
+                entityIdInput.style.border = '1px solid #ccc';
+                entityIdInput.style.width = '250px';
+                entityIdInput.disabled = !this.allowEntityIdEdit;
+                
+                // Store reference to entity ID input
+                this.entityIdInput = entityIdInput;
+                
+                // Add input to section
+                entityIdSection.appendChild(entityIdInput);
+                
+                // Add section to toolbar
+                this.toolbar.appendChild(entityIdSection);
+            }
+            
+            // Create appropriate operation button(s)
+            if (this.operation === 'GET') {
+                // GET Button (green)
+                this.getButton = document.createElement('button');
+                this.getButton.textContent = 'GET';
+                this.getButton.title = 'Fetch entity by ID';
+                operationButtonStyle(this.getButton, '#5cb85c'); // Green
+                this.toolbar.appendChild(this.getButton);
+            }
+            else if (this.operation === 'POST') {
+                // POST Button (blue)
+                this.postButton = document.createElement('button');
+                this.postButton.textContent = 'POST';
+                this.postButton.title = 'Create new entity';
+                operationButtonStyle(this.postButton, '#337ab7'); // Blue
+                this.toolbar.appendChild(this.postButton);
+            }
+            else if (this.operation === 'PATCH') {
+                // GET Button for PATCH (green)
+                this.getButton = document.createElement('button');
+                this.getButton.textContent = 'GET';
+                this.getButton.title = 'Fetch entity by ID';
+                operationButtonStyle(this.getButton, '#5cb85c'); // Green
+                this.toolbar.appendChild(this.getButton);
+                
+                // PATCH Button (orange)
+                this.patchButton = document.createElement('button');
+                this.patchButton.textContent = 'PATCH';
+                this.patchButton.title = 'Update entity properties';
+                operationButtonStyle(this.patchButton, '#f0ad4e'); // Orange
+                this.toolbar.appendChild(this.patchButton);
+            }
+            else if (this.operation === 'PUT') {
+                // GET Button for PUT (green)
+                this.getButton = document.createElement('button');
+                this.getButton.textContent = 'GET';
+                this.getButton.title = 'Fetch entity by ID';
+                operationButtonStyle(this.getButton, '#5cb85c'); // Green
+                this.toolbar.appendChild(this.getButton);
+                
+                // PUT Button (blue)
+                this.putButton = document.createElement('button');
+                this.putButton.textContent = 'PUT';
+                this.putButton.title = 'Replace entity';
+                operationButtonStyle(this.putButton, '#5bc0de'); // Light blue
+                this.toolbar.appendChild(this.putButton);
+            }
+        }
+        
+        // Create separator for NGSI-LD specific buttons
         const separator = document.createElement('div');
         separator.style.borderLeft = '1px solid #ccc';
         separator.style.height = '20px';
@@ -389,6 +536,25 @@ class JsonEditor {
             this.formatButton.addEventListener('click', this.prettifyJson);
             this.lineNumbersButton.addEventListener('click', this.toggleLineNumbers);
             this.coloringButton.addEventListener('click', this.toggleColoring);
+            
+            // Add handlers for API operation buttons
+            if (this.operation) {
+                if (this.getButton) {
+                    this.getButton.addEventListener('click', this.handleGetOperation);
+                }
+                if (this.postButton) {
+                    this.postButton.addEventListener('click', this.handlePostOperation);
+                }
+                if (this.putButton) {
+                    this.putButton.addEventListener('click', this.handlePutOperation);
+                }
+                if (this.patchButton) {
+                    this.patchButton.addEventListener('click', this.handlePatchOperation);
+                }
+                if (this.deleteButton) {
+                    this.deleteButton.addEventListener('click', this.handleDeleteOperation);
+                }
+            }
             
             // Add handlers for Orion-LD specific buttons
             this.insertAttributeButton.addEventListener('click', this.insertNGSIAttribute);
@@ -1294,6 +1460,695 @@ class JsonEditor {
         
         // Trigger onChange callback
         this.onChange(this.getValue());
+    }
+
+    /**
+     * Set up network status event listeners
+     */
+    setupNetworkListeners() {
+        // Listen for online/offline events
+        window.addEventListener('online', this.handleNetworkStatusChange);
+        window.addEventListener('offline', this.handleNetworkStatusChange);
+    }
+
+    /**
+     * Handle network status changes
+     */
+    handleNetworkStatusChange = () => {
+        const wasOnline = this.isOnline;
+        this.isOnline = navigator.onLine;
+        
+        // Only show notification if status actually changed
+        if (wasOnline !== this.isOnline) {
+            if (this.isOnline) {
+                this.showValidationMessage('Connection restored. You are back online.', true);
+            } else {
+                this.showValidationMessage('You are currently offline. API operations will not work.', false);
+            }
+        }
+    }
+
+    /**
+     * Check if the application is online
+     * @returns {boolean} True if online, false if offline
+     */
+    checkOnlineStatus() {
+        // Update current online status
+        this.isOnline = navigator.onLine;
+        
+        // If offline, show a message
+        if (!this.isOnline) {
+            this.showValidationMessage('You are offline. Please check your network connection and try again.', false);
+        }
+        
+        return this.isOnline;
+    }
+
+    /**
+     * Attempt an API operation with offline handling
+     * @param {Function} operationFn The API operation function to try
+     * @returns {Promise} A promise that resolves or rejects based on the operation
+     */
+    tryApiOperation(operationFn) {
+        // First check if we're online
+        if (!this.checkOnlineStatus()) {
+            return Promise.reject({
+                error: true,
+                message: 'It appears you\'re not connected to the internet, please check your network connection and try again.',
+                offline: true,
+                requestId: this.generateRequestId()
+            });
+        }
+        
+        // If we're online, try the operation
+        return operationFn().catch(error => {
+            // If the error might be due to connection issues
+            if (this.isConnectionError(error)) {
+                // Double check our connection status
+                this.isOnline = navigator.onLine;
+                if (!this.isOnline) {
+                    return Promise.reject({
+                        error: true,
+                        message: 'You lost connection during the operation. Please check your network and try again.',
+                        offline: true,
+                        requestId: this.generateRequestId()
+                    });
+                }
+            }
+            
+            // If it's not an offline issue, just pass through the original error
+            return Promise.reject(error);
+        });
+    }
+
+    /**
+     * Generate a unique request ID for error tracking
+     * @returns {string} A unique request ID
+     */
+    generateRequestId() {
+        return [
+            Date.now().toString(36), 
+            Math.random().toString(36).substring(2, 9)
+        ].join('-');
+    }
+
+    /**
+     * Check if an error is likely a connection error
+     * @param {Object} error The error object
+     * @returns {boolean} True if it's likely a connection error
+     */
+    isConnectionError(error) {
+        // Check for common connection error signs
+        if (!error) return false;
+        
+        // Check for network error messages
+        if (error.message) {
+            const msg = error.message.toLowerCase();
+            return (
+                msg.includes('network') ||
+                msg.includes('connection') ||
+                msg.includes('offline') ||
+                msg.includes('internet') ||
+                msg.includes('timeout') ||
+                msg.includes('failed to fetch')
+            );
+        }
+        
+        // Check for specific error formats
+        if (typeof error === 'string') {
+            const errorStr = error.toLowerCase();
+            return (
+                errorStr.includes('not connected to the internet') ||
+                errorStr.includes('check your network') ||
+                errorStr.includes('network connection') ||
+                errorStr.includes('please try again')
+            );
+        }
+        
+        // Check if the error has a standard format with the 'reason' property
+        if (error.reason && typeof error.reason === 'string') {
+            const reason = error.reason.toLowerCase();
+            return (
+                reason.includes('not connected to the internet') ||
+                reason.includes('check your network') ||
+                reason.includes('offline') ||
+                reason.includes('network connection')
+            );
+        }
+        
+        // Check for specific error codes
+        if (error.code) {
+            return (
+                error.code === 'ECONNREFUSED' ||
+                error.code === 'ECONNRESET' ||
+                error.code === 'ENOTFOUND' ||
+                error.code === 'ETIMEDOUT'
+            );
+        }
+        
+        return false;
+    }
+
+    /**
+     * Handle API operation with proper error detection and offline mode handling
+     * @param {Event} e The event object
+     */
+    handleApiOperation = (e) => {
+        // Make sure we're online before proceeding
+        if (!this.checkOnlineStatus()) {
+            const errorObj = {
+                error: true,
+                message: 'It appears you\'re not connected to the internet, please check your network connection and try again.',
+                offline: true,
+                requestId: this.generateRequestId()
+            };
+            
+            // Display error message
+            this.showValidationMessage(`Error: ${errorObj.message}`, false);
+            
+            // Call the onApiOperation callback with the error
+            if (typeof this.onApiOperation === 'function') {
+                this.onApiOperation(this.entityId, null, errorObj);
+            }
+            return;
+        }
+        
+        // Validate JSON before sending
+        if (!this.validateJson()) {
+            // If validation failed, stop and don't send invalid JSON
+            return;
+        }
+        
+        try {
+            const jsonData = this.getValue(true); // Get parsed value
+            
+            if (jsonData === null) {
+                this.showValidationMessage('Error: Invalid JSON format', false);
+                return;
+            }
+            
+            // Use the tryApiOperation method to handle the operation with offline detection
+            this.tryApiOperation(() => {
+                // Return a promise that will be handled by tryApiOperation
+                return new Promise((resolve, reject) => {
+                    // This would typically be an actual API call
+                    // For now, we're just simulating the callback to the parent component
+                    if (typeof this.onApiOperation === 'function') {
+                        // In a real implementation, this would be replaced with an actual API call
+                        // that returns a promise, which would resolve or reject based on the result
+                        try {
+                            const result = this.onApiOperation(this.entityId, jsonData, null);
+                            resolve(result);
+                        } catch (error) {
+                            reject(error);
+                        }
+                    } else {
+                        resolve({ success: true }); // Resolve with a dummy result if no callback provided
+                    }
+                });
+            }).catch(error => {
+                // Handle errors from the API operation
+                let errorMessage;
+                
+                if (error.offline) {
+                    errorMessage = `Error: ${error.message}`;
+                } else if (error.message) {
+                    errorMessage = `API Error: ${error.message}`;
+                } else {
+                    errorMessage = 'An unknown error occurred';
+                }
+                
+                // Show error in the UI
+                this.showValidationMessage(errorMessage, false);
+                
+                // Call onApiOperation with the error
+                if (typeof this.onApiOperation === 'function') {
+                    this.onApiOperation(this.entityId, null, error);
+                }
+            });
+            
+        } catch (error) {
+            console.error('Error in API operation:', error);
+            this.showValidationMessage(`Error: ${error.message || 'Unknown error'}`, false);
+        }
+    }
+
+    /**
+     * Handle the GET operation button click
+     * Gets an entity by ID and displays it in the editor
+     */
+    handleGetOperation = () => {
+        // Make sure we have an entity ID
+        const entityId = this.entityIdInput ? this.entityIdInput.value.trim() : this.entityId;
+        
+        if (!entityId) {
+            this.showValidationMessage('Please enter an Entity ID', false);
+            if (this.entityIdInput) {
+                this.entityIdInput.focus();
+            }
+            return;
+        }
+        
+        // Store the entity ID
+        this.entityId = entityId;
+        
+        // Show loading message
+        this.showValidationMessage('Loading entity...', true);
+        
+        // Call the onApiOperation callback with the entity ID
+        if (typeof this.onApiOperation === 'function') {
+            try {
+                // Operation is GET, no JSON data needed for GET
+                const result = this.onApiOperation('GET', entityId, null);
+                
+                // Check if the operation returned a promise
+                if (result && typeof result.then === 'function') {
+                    result.then(data => {
+                        // Display the fetched entity
+                        this.handleGetSuccess(data);
+                    }).catch(error => {
+                        // Handle error
+                        this.showValidationMessage(`Error: ${error.message || 'Failed to load entity'}`, false);
+                    });
+                } else if (result) {
+                    // Handle synchronous result
+                    this.handleGetSuccess(result);
+                }
+            } catch (error) {
+                // Handle error
+                this.showValidationMessage(`Error: ${error.message || 'Failed to load entity'}`, false);
+            }
+        } else {
+            // No callback provided, show error
+            this.showValidationMessage('API operation handler not configured', false);
+        }
+    }
+    
+    /**
+     * Handle successful GET operation
+     * @param {Object} data The fetched entity data
+     */
+    handleGetSuccess = (data) => {
+        // Set the editor value to the fetched entity
+        this.setValue(data);
+        
+        // Show success message
+        this.showValidationMessage('Entity loaded successfully', true);
+        
+        // Add additional operation buttons after a successful GET
+        this.addOperationButtonsAfterGet();
+    }
+    
+    /**
+     * Add PATCH, PUT, and DELETE buttons after a successful GET operation
+     */
+    addOperationButtonsAfterGet = () => {
+        // Don't add buttons if they already exist
+        if (this.operation === 'GET' && !this.patchButton && !this.putButton && !this.deleteButton) {
+            const toolbar = this.toolbar;
+            
+            // Function to style operation buttons
+            const operationButtonStyle = (button, color) => {
+                button.style.backgroundColor = color;
+                button.style.color = 'white';
+                button.style.border = 'none';
+                button.style.borderRadius = '3px';
+                button.style.padding = '4px 8px';
+                button.style.margin = '0 3px';
+                button.style.fontSize = '12px';
+                button.style.cursor = 'pointer';
+                button.style.display = 'flex';
+                button.style.alignItems = 'center';
+                button.style.justifyContent = 'center';
+                button.style.fontWeight = 'bold';
+                button.style.minWidth = '60px';
+                button.style.height = '28px';
+                
+                // Shade color function for hover effects
+                const shadeColor = (color, percent) => {
+                    let R = parseInt(color.substring(1,3), 16);
+                    let G = parseInt(color.substring(3,5), 16);
+                    let B = parseInt(color.substring(5,7), 16);
+
+                    R = parseInt(R * (100 + percent) / 100);
+                    G = parseInt(G * (100 + percent) / 100);
+                    B = parseInt(B * (100 + percent) / 100);
+
+                    R = (R < 255) ? R : 255;  
+                    G = (G < 255) ? G : 255;  
+                    B = (B < 255) ? B : 255;  
+
+                    R = Math.max(0, R).toString(16).padStart(2, '0');
+                    G = Math.max(0, G).toString(16).padStart(2, '0');
+                    B = Math.max(0, B).toString(16).padStart(2, '0');
+
+                    return `#${R}${G}${B}`;
+                };
+                
+                button.addEventListener('mouseover', () => {
+                    button.style.backgroundColor = shadeColor(color, -10); // Darken on hover
+                });
+                button.addEventListener('mouseout', () => {
+                    button.style.backgroundColor = color;
+                });
+            };
+            
+            // Create PATCH Button (orange)
+            this.patchButton = document.createElement('button');
+            this.patchButton.textContent = 'PATCH';
+            this.patchButton.title = 'Update entity properties';
+            operationButtonStyle(this.patchButton, '#f0ad4e'); // Orange
+            this.patchButton.addEventListener('click', this.handlePatchOperation);
+            toolbar.appendChild(this.patchButton);
+            
+            // Create PUT Button (light blue)
+            this.putButton = document.createElement('button');
+            this.putButton.textContent = 'PUT';
+            this.putButton.title = 'Replace entity';
+            operationButtonStyle(this.putButton, '#5bc0de'); // Light blue
+            this.putButton.addEventListener('click', this.handlePutOperation);
+            toolbar.appendChild(this.putButton);
+            
+            // Create DELETE Button (red)
+            this.deleteButton = document.createElement('button');
+            this.deleteButton.textContent = 'DELETE';
+            this.deleteButton.title = 'Delete entity';
+            operationButtonStyle(this.deleteButton, '#d9534f'); // Red
+            this.deleteButton.addEventListener('click', this.handleDeleteOperation);
+            toolbar.appendChild(this.deleteButton);
+        }
+    }
+    
+    /**
+     * Handle the POST operation button click
+     * Creates a new entity
+     */
+    handlePostOperation = () => {
+        // Validate JSON before sending
+        if (!this.validateJson()) {
+            return;
+        }
+        
+        // Get the JSON data
+        const jsonData = this.getValue(true);
+        if (!jsonData) {
+            this.showValidationMessage('Error: Invalid JSON format', false);
+            return;
+        }
+        
+        // Show loading message
+        this.showValidationMessage('Creating entity...', true);
+        
+        // Call the onApiOperation callback
+        if (typeof this.onApiOperation === 'function') {
+            try {
+                // Operation is POST
+                const result = this.onApiOperation('POST', null, jsonData);
+                
+                // Check if the operation returned a promise
+                if (result && typeof result.then === 'function') {
+                    result.then(data => {
+                        // Handle successful creation
+                        this.handlePostSuccess(data);
+                    }).catch(error => {
+                        // Handle error
+                        this.showValidationMessage(`Error: ${error.message || 'Failed to create entity'}`, false);
+                    });
+                } else if (result) {
+                    // Handle synchronous result
+                    this.handlePostSuccess(result);
+                }
+            } catch (error) {
+                // Handle error
+                this.showValidationMessage(`Error: ${error.message || 'Failed to create entity'}`, false);
+            }
+        } else {
+            // No callback provided, show error
+            this.showValidationMessage('API operation handler not configured', false);
+        }
+    }
+    
+    /**
+     * Handle successful POST operation
+     * @param {Object} data The response data from the POST operation
+     */
+    handlePostSuccess = (data) => {
+        // Check if the response contains the created entity
+        if (data && typeof data === 'object') {
+            // If we have entity data, show it
+            this.setValue(data);
+        }
+        
+        // Show success message
+        this.showValidationMessage('Entity created successfully', true);
+        
+        // If this response has an ID, extract it
+        if (data && data.id) {
+            this.entityId = data.id;
+            if (this.entityIdInput) {
+                this.entityIdInput.value = data.id;
+            }
+        }
+        
+        // Switch to GET mode with the new entity
+        this.refreshWithGetMode();
+    }
+    
+    /**
+     * Handle the PATCH operation button click
+     * Updates specific properties of an entity
+     */
+    handlePatchOperation = () => {
+        // Make sure we have an entity ID
+        const entityId = this.entityIdInput ? this.entityIdInput.value.trim() : this.entityId;
+        
+        if (!entityId) {
+            this.showValidationMessage('Please enter an Entity ID', false);
+            if (this.entityIdInput) {
+                this.entityIdInput.focus();
+            }
+            return;
+        }
+        
+        // Validate JSON before sending
+        if (!this.validateJson()) {
+            return;
+        }
+        
+        // Get the JSON data
+        const jsonData = this.getValue(true);
+        if (!jsonData) {
+            this.showValidationMessage('Error: Invalid JSON format', false);
+            return;
+        }
+        
+        // Show loading message
+        this.showValidationMessage('Updating entity...', true);
+        
+        // Call the onApiOperation callback
+        if (typeof this.onApiOperation === 'function') {
+            try {
+                // Operation is PATCH
+                const result = this.onApiOperation('PATCH', entityId, jsonData);
+                
+                // Check if the operation returned a promise
+                if (result && typeof result.then === 'function') {
+                    result.then(data => {
+                        // Handle successful update
+                        this.handlePatchSuccess(data);
+                    }).catch(error => {
+                        // Handle error
+                        this.showValidationMessage(`Error: ${error.message || 'Failed to update entity'}`, false);
+                    });
+                } else if (result) {
+                    // Handle synchronous result
+                    this.handlePatchSuccess(result);
+                }
+            } catch (error) {
+                // Handle error
+                this.showValidationMessage(`Error: ${error.message || 'Failed to update entity'}`, false);
+            }
+        } else {
+            // No callback provided, show error
+            this.showValidationMessage('API operation handler not configured', false);
+        }
+    }
+    
+    /**
+     * Handle successful PATCH operation
+     * @param {Object} data The response data from the PATCH operation
+     */
+    handlePatchSuccess = (data) => {
+        // Show success message
+        this.showValidationMessage('Entity updated successfully', true);
+        
+        // Refresh to GET the updated entity
+        this.refreshWithGetMode();
+    }
+    
+    /**
+     * Handle the PUT operation button click
+     * Replaces an entire entity
+     */
+    handlePutOperation = () => {
+        // Make sure we have an entity ID
+        const entityId = this.entityIdInput ? this.entityIdInput.value.trim() : this.entityId;
+        
+        if (!entityId) {
+            this.showValidationMessage('Please enter an Entity ID', false);
+            if (this.entityIdInput) {
+                this.entityIdInput.focus();
+            }
+            return;
+        }
+        
+        // Validate JSON before sending
+        if (!this.validateJson()) {
+            return;
+        }
+        
+        // Get the JSON data
+        const jsonData = this.getValue(true);
+        if (!jsonData) {
+            this.showValidationMessage('Error: Invalid JSON format', false);
+            return;
+        }
+        
+        // Show loading message
+        this.showValidationMessage('Replacing entity...', true);
+        
+        // Call the onApiOperation callback
+        if (typeof this.onApiOperation === 'function') {
+            try {
+                // Operation is PUT
+                const result = this.onApiOperation('PUT', entityId, jsonData);
+                
+                // Check if the operation returned a promise
+                if (result && typeof result.then === 'function') {
+                    result.then(data => {
+                        // Handle successful replacement
+                        this.handlePutSuccess(data);
+                    }).catch(error => {
+                        // Handle error
+                        this.showValidationMessage(`Error: ${error.message || 'Failed to replace entity'}`, false);
+                    });
+                } else if (result) {
+                    // Handle synchronous result
+                    this.handlePutSuccess(result);
+                }
+            } catch (error) {
+                // Handle error
+                this.showValidationMessage(`Error: ${error.message || 'Failed to replace entity'}`, false);
+            }
+        } else {
+            // No callback provided, show error
+            this.showValidationMessage('API operation handler not configured', false);
+        }
+    }
+    
+    /**
+     * Handle successful PUT operation
+     * @param {Object} data The response data from the PUT operation
+     */
+    handlePutSuccess = (data) => {
+        // Show success message
+        this.showValidationMessage('Entity replaced successfully', true);
+        
+        // Refresh to GET the updated entity
+        this.refreshWithGetMode();
+    }
+    
+    /**
+     * Handle the DELETE operation button click
+     * Deletes an entity
+     */
+    handleDeleteOperation = () => {
+        // Make sure we have an entity ID
+        const entityId = this.entityIdInput ? this.entityIdInput.value.trim() : this.entityId;
+        
+        if (!entityId) {
+            this.showValidationMessage('Please enter an Entity ID', false);
+            if (this.entityIdInput) {
+                this.entityIdInput.focus();
+            }
+            return;
+        }
+        
+        // Confirm deletion
+        if (!confirm(`Are you sure you want to delete entity "${entityId}"?`)) {
+            return;
+        }
+        
+        // Show loading message
+        this.showValidationMessage('Deleting entity...', true);
+        
+        // Call the onApiOperation callback
+        if (typeof this.onApiOperation === 'function') {
+            try {
+                // Operation is DELETE
+                const result = this.onApiOperation('DELETE', entityId, null);
+                
+                // Check if the operation returned a promise
+                if (result && typeof result.then === 'function') {
+                    result.then(data => {
+                        // Handle successful deletion
+                        this.handleDeleteSuccess(data);
+                    }).catch(error => {
+                        // Handle error
+                        this.showValidationMessage(`Error: ${error.message || 'Failed to delete entity'}`, false);
+                    });
+                } else if (result) {
+                    // Handle synchronous result
+                    this.handleDeleteSuccess(result);
+                }
+            } catch (error) {
+                // Handle error
+                this.showValidationMessage(`Error: ${error.message || 'Failed to delete entity'}`, false);
+            }
+        } else {
+            // No callback provided, show error
+            this.showValidationMessage('API operation handler not configured', false);
+        }
+    }
+    
+    /**
+     * Handle successful DELETE operation
+     * @param {Object} data The response data from the DELETE operation
+     */
+    handleDeleteSuccess = (data) => {
+        // Show success message
+        this.showValidationMessage('Entity deleted successfully', true);
+        
+        // Clear the editor or refresh to GET mode with empty results
+        this.setValue({
+            message: "Entity deleted successfully",
+            timestamp: new Date().toISOString()
+        });
+        
+        // Refresh to GET mode with blank state
+        this.refreshWithGetMode();
+    }
+    
+    /**
+     * Refresh the editor to GET mode
+     * This allows a seamless transition between operations
+     */
+    refreshWithGetMode = () => {
+        // If this is part of a tab system with API functions, notify parent to refresh
+        if (typeof window.refreshEditorWithOperation === 'function') {
+            window.refreshEditorWithOperation('GET', this.entityId);
+        } else if (typeof this.onApiOperation === 'function') {
+            // Otherwise, try to use our callback to refresh
+            setTimeout(() => {
+                // If we have an entity ID, try to GET it
+                if (this.entityId && this.entityIdInput) {
+                    this.handleGetOperation();
+                } else {
+                    // Just show success without changing mode
+                    this.showValidationMessage('Operation completed successfully', true);
+                }
+            }, 1000); // Short delay to show success message first
+        }
     }
 }
 

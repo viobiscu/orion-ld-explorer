@@ -477,7 +477,8 @@
                 initialValue = entityTemplate;
             }
             
-            if (savedEntityId && ['put', 'patch'].includes(mode)) {
+            // Use saved entity ID for all suitable modes
+            if (savedEntityId && ['get', 'put', 'patch', 'delete'].includes(mode)) {
                 entityId = savedEntityId;
             } else if (['put', 'patch'].includes(mode)) {
                 // For PUT/PATCH, extract ID from template if no saved ID
@@ -494,7 +495,41 @@
                 resize: true,
                 mode: mode,
                 entityId: entityId,
-                onEntityAction: handleEntityAction,
+                operation: mode.toUpperCase(), // Explicitly set the operation type to trigger API buttons
+                allowEntityIdEdit: true,       // Allow editing the entity ID
+                onApiOperation: function(operation, entityId, data) {
+                    console.log(`API operation called: ${operation} on entity ${entityId}`);
+                    
+                    // Handler for different operations
+                    if (operation === 'GET') {
+                        if (typeof window.handleGetQuery === 'function') {
+                            console.log(`Handling GET for ${entityId}`);
+                            window.handleGetQuery(entityId);
+                            return { success: true };
+                        }
+                    } else if (operation === 'POST') {
+                        if (typeof window.processPostQuery === 'function') {
+                            return window.processPostQuery(JSON.stringify(data));
+                        }
+                    } else if (operation === 'PUT') {
+                        if (typeof window.processPutQuery === 'function') {
+                            return window.processPutQuery(entityId, JSON.stringify(data));
+                        }
+                    } else if (operation === 'PATCH') {
+                        if (typeof window.processPatchQuery === 'function') {
+                            return window.processPatchQuery(entityId, JSON.stringify(data));
+                        }
+                    } else if (operation === 'DELETE') {
+                        if (confirm(`Are you sure you want to delete entity "${entityId}"? This action cannot be undone.`)) {
+                            if (typeof window.processDeleteQuery === 'function') {
+                                return window.processDeleteQuery(entityId);
+                            }
+                        }
+                    }
+                    
+                    console.error(`No handler for ${operation} operation`);
+                    return { error: true, message: `Handler for ${operation} not available` };
+                },
                 onSave: function(value) {
                     try {
                         const parsedValue = JSON.parse(value);
@@ -515,6 +550,11 @@
             const tab = window.tabManager.getTabById(tabId);
             if (tab && tab.editor) {
                 window.entityEditor = tab.editor;
+                
+                // For GET mode, also set the getResultsEditor reference
+                if (mode === 'get') {
+                    window.getResultsEditor = tab.editor;
+                }
             }
             
             // Log the operation
