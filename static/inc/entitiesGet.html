@@ -1,0 +1,265 @@
+<div class="form-container">
+  <div class="form-header">
+    <h2>Get Entity</h2>
+    <button class="method-button get-button" onclick="fetchEntityById()">Get By ID</button>
+    <button class="method-button get-button" onclick="fetchEntitiesByType()">Get By Type</button>
+    <button class="method-button get-button" onclick="fetchAllEntities()">Get All</button>
+  </div>
+  <div class="form-body">
+    <div id="entityInfo" class="info-section">
+      <p>Use this form to retrieve entities from the Orion-LD Context Broker.</p>
+      <ul>
+        <li><strong>Get By ID</strong> - Retrieve a specific entity by ID</li>
+        <li><strong>Get By Type</strong> - Retrieve entities of a specific type</li>
+        <li><strong>Get All</strong> - Retrieve all entities (limited to 100)</li>
+      </ul>
+      <p>The response will be displayed in the GET results area below.</p>
+    </div>
+    
+    <div class="query-section">
+      <div class="input-group">
+        <label for="entityIdInput">Entity ID:</label>
+        <input type="text" id="entityIdInput" placeholder="urn:ngsi-ld:Entity:001" />
+      </div>
+      
+      <div class="input-group">
+        <label for="entityTypeInput">Entity Type:</label>
+        <input type="text" id="entityTypeInput" placeholder="Device" />
+      </div>
+      
+      <div class="input-group">
+        <label for="queryParamsInput">Additional Query Parameters:</label>
+        <input type="text" id="queryParamsInput" placeholder="limit=10&offset=0" />
+      </div>
+    </div>
+    
+    <!-- GET Results Editor -->
+    <div id="getResultsContainer" style="width: 100%; height: 400px; margin-top: 20px;"></div>
+  </div>
+  <div class="form-footer">
+    <small>This form retrieves entities from the Orion-LD Context Broker.</small>
+  </div>
+</div>
+
+<script>
+  // Initialize the GET editor when the tab loads
+  (function() {
+    // Create a JsonEditor in GET mode for displaying results
+    const getEditor = new JsonEditor({
+      containerId: 'getResultsContainer',
+      height: 400,
+      resize: true,
+      showToolbar: true,
+      showLineNumbers: true,
+      mode: 'get',  // This is key - setting mode to 'get' creates the dedicated display area
+      // Add the onCustomToolbar option to disable the built-in GET controls
+      onCustomToolbar: function(toolbar) {
+        // This prevents the default GET input and button from being added
+        // We'll use our custom controls above instead
+      },
+      initialValue: JSON.stringify({
+        message: "Ready to fetch entities",
+        instructions: "Enter an Entity ID or Type and click the corresponding button"
+      }, null, 2)
+    });
+    
+    // Store the editor as window.getResultsEditor for the handleGetQuery function to use
+    window.getResultsEditor = getEditor;
+    
+    console.log("GET mode JsonEditor initialized for entities");
+  })();
+  
+  // Fetch an entity by ID
+  function fetchEntityById() {
+    try {
+      // Get the ID from the input field
+      const entityId = document.getElementById('entityIdInput').value.trim();
+      
+      if (!entityId) {
+        // Show error if no ID is provided
+        const errorMsg = {
+          error: "Entity ID is required",
+          message: "Please enter an Entity ID",
+          timestamp: new Date().toISOString()
+        };
+        
+        if (window.getResultsEditor) {
+          window.getResultsEditor.setValue(JSON.stringify(errorMsg, null, 2));
+        }
+        
+        appendToLogs("Error: Entity ID is required");
+        return;
+      }
+      
+      // Show loading message
+      if (window.getResultsEditor) {
+        window.getResultsEditor.setValue(JSON.stringify({ 
+          message: `Loading Entity: ${entityId}...`,
+          timestamp: new Date().toISOString()
+        }, null, 2));
+      }
+      
+      // Get additional query parameters if any
+      const queryParams = document.getElementById('queryParamsInput').value.trim();
+      let query = entityId;
+      
+      // Add query parameters if provided
+      if (queryParams) {
+        if (entityId.includes('?')) {
+          query = `${entityId}&${queryParams}`;
+        } else {
+          query = `${entityId}?${queryParams}`;
+        }
+      }
+      
+      // Ensure the query starts with / if it's an entity ID
+      if (query.startsWith('urn:')) {
+        query = `/${query}`;
+      }
+      
+      // Call the handleGetQuery function
+      if (typeof window.handleGetQuery === 'function') {
+        window.handleGetQuery(query);
+      } else {
+        const errorMsg = {
+          error: "handleGetQuery function is not available",
+          message: "The API query handler is not yet loaded. Please try again in a few moments."
+        };
+        
+        if (window.getResultsEditor) {
+          window.getResultsEditor.setValue(JSON.stringify(errorMsg, null, 2));
+        }
+        
+        appendToLogs("Error: API query handler not available");
+      }
+    } catch (error) {
+      console.error("Unexpected error in fetchEntityById:", error);
+      appendToLogs(`Unexpected error: ${error.message || error}`);
+      
+      if (window.getResultsEditor) {
+        window.getResultsEditor.setValue(JSON.stringify({
+          error: "Unexpected error",
+          details: error.message || String(error),
+          timestamp: new Date().toISOString()
+        }, null, 2));
+      }
+    }
+  }
+  
+  // Fetch entities by type
+  function fetchEntitiesByType() {
+    try {
+      // Get the type from the input field
+      const entityType = document.getElementById('entityTypeInput').value.trim();
+      
+      if (!entityType) {
+        // Show error if no type is provided
+        const errorMsg = {
+          error: "Entity Type is required",
+          message: "Please enter an Entity Type",
+          timestamp: new Date().toISOString()
+        };
+        
+        if (window.getResultsEditor) {
+          window.getResultsEditor.setValue(JSON.stringify(errorMsg, null, 2));
+        }
+        
+        appendToLogs("Error: Entity Type is required");
+        return;
+      }
+      
+      // Show loading message
+      if (window.getResultsEditor) {
+        window.getResultsEditor.setValue(JSON.stringify({ 
+          message: `Loading Entities of type: ${entityType}...`,
+          timestamp: new Date().toISOString()
+        }, null, 2));
+      }
+      
+      // Get additional query parameters if any
+      const queryParams = document.getElementById('queryParamsInput').value.trim();
+      let query = `?type=${encodeURIComponent(entityType)}`;
+      
+      // Add additional query parameters if provided
+      if (queryParams) {
+        query = `${query}&${queryParams}`;
+      }
+      
+      // Call the handleGetQuery function
+      if (typeof window.handleGetQuery === 'function') {
+        window.handleGetQuery(query);
+      } else {
+        const errorMsg = {
+          error: "handleGetQuery function is not available",
+          message: "The API query handler is not yet loaded. Please try again in a few moments."
+        };
+        
+        if (window.getResultsEditor) {
+          window.getResultsEditor.setValue(JSON.stringify(errorMsg, null, 2));
+        }
+        
+        appendToLogs("Error: API query handler not available");
+      }
+    } catch (error) {
+      console.error("Unexpected error in fetchEntitiesByType:", error);
+      appendToLogs(`Unexpected error: ${error.message || error}`);
+      
+      if (window.getResultsEditor) {
+        window.getResultsEditor.setValue(JSON.stringify({
+          error: "Unexpected error",
+          details: error.message || String(error),
+          timestamp: new Date().toISOString()
+        }, null, 2));
+      }
+    }
+  }
+  
+  // Fetch all entities (with limit)
+  function fetchAllEntities() {
+    try {
+      // Show loading message
+      if (window.getResultsEditor) {
+        window.getResultsEditor.setValue(JSON.stringify({ 
+          message: "Loading all Entities (limited to 100)...",
+          timestamp: new Date().toISOString()
+        }, null, 2));
+      }
+      
+      // Get additional query parameters if any
+      const queryParams = document.getElementById('queryParamsInput').value.trim();
+      let query = "?limit=100";
+      
+      // Add additional query parameters if provided
+      if (queryParams) {
+        query = `${query}&${queryParams}`;
+      }
+      
+      // Call the handleGetQuery function
+      if (typeof window.handleGetQuery === 'function') {
+        window.handleGetQuery(query);
+      } else {
+        const errorMsg = {
+          error: "handleGetQuery function is not available",
+          message: "The API query handler is not yet loaded. Please try again in a few moments."
+        };
+        
+        if (window.getResultsEditor) {
+          window.getResultsEditor.setValue(JSON.stringify(errorMsg, null, 2));
+        }
+        
+        appendToLogs("Error: API query handler not available");
+      }
+    } catch (error) {
+      console.error("Unexpected error in fetchAllEntities:", error);
+      appendToLogs(`Unexpected error: ${error.message || error}`);
+      
+      if (window.getResultsEditor) {
+        window.getResultsEditor.setValue(JSON.stringify({
+          error: "Unexpected error",
+          details: error.message || String(error),
+          timestamp: new Date().toISOString()
+        }, null, 2));
+      }
+    }
+  }
+</script>

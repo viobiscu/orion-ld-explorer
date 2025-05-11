@@ -242,6 +242,49 @@ class JsonEditor {
         this.coloringButton.appendChild(createIcon('fas fa-palette'));
         buttonStyle(this.coloringButton);
         this.toolbar.appendChild(this.coloringButton);
+        
+        // Create separator for Orion-LD specific buttons
+        const separator = document.createElement('div');
+        separator.style.borderLeft = '1px solid #ccc';
+        separator.style.height = '20px';
+        separator.style.margin = '0 8px';
+        this.toolbar.appendChild(separator);
+        
+        // Create insert attribute button for Orion-LD
+        this.insertAttributeButton = document.createElement('button');
+        this.insertAttributeButton.title = 'Insert NGSI-LD Attribute';
+        this.insertAttributeButton.appendChild(createIcon('fas fa-plus-circle'));
+        const attrSpan = document.createElement('span');
+        attrSpan.textContent = ' Attribute';
+        attrSpan.style.marginLeft = '4px';
+        this.insertAttributeButton.appendChild(attrSpan);
+        buttonStyle(this.insertAttributeButton);
+        this.insertAttributeButton.style.minWidth = 'auto';
+        this.toolbar.appendChild(this.insertAttributeButton);
+        
+        // Create insert relationship button for Orion-LD
+        this.insertRelationshipButton = document.createElement('button');
+        this.insertRelationshipButton.title = 'Insert NGSI-LD Relationship';
+        this.insertRelationshipButton.appendChild(createIcon('fas fa-link'));
+        const relSpan = document.createElement('span');
+        relSpan.textContent = ' Relationship';
+        relSpan.style.marginLeft = '4px';
+        this.insertRelationshipButton.appendChild(relSpan);
+        buttonStyle(this.insertRelationshipButton);
+        this.insertRelationshipButton.style.minWidth = 'auto';
+        this.toolbar.appendChild(this.insertRelationshipButton);
+        
+        // Create insert context button for Orion-LD
+        this.insertContextButton = document.createElement('button');
+        this.insertContextButton.title = 'Insert NGSI-LD Context';
+        this.insertContextButton.appendChild(createIcon('fas fa-sitemap'));
+        const contextSpan = document.createElement('span');
+        contextSpan.textContent = ' Context';
+        contextSpan.style.marginLeft = '4px';
+        this.insertContextButton.appendChild(contextSpan);
+        buttonStyle(this.insertContextButton);
+        this.insertContextButton.style.minWidth = 'auto';
+        this.toolbar.appendChild(this.insertContextButton);
     }
     
     /**
@@ -334,6 +377,9 @@ class JsonEditor {
         // Handle tab key
         this.textarea.addEventListener('keydown', this.handleKeyDown);
         
+        // Add double-click handler to select text between quotes
+        this.textarea.addEventListener('dblclick', this.handleDoubleClick);
+        
         // When textarea loses focus, reformat JSON
         this.textarea.addEventListener('blur', () => this.formatJson());
         
@@ -343,6 +389,11 @@ class JsonEditor {
             this.formatButton.addEventListener('click', this.prettifyJson);
             this.lineNumbersButton.addEventListener('click', this.toggleLineNumbers);
             this.coloringButton.addEventListener('click', this.toggleColoring);
+            
+            // Add handlers for Orion-LD specific buttons
+            this.insertAttributeButton.addEventListener('click', this.insertNGSIAttribute);
+            this.insertRelationshipButton.addEventListener('click', this.insertNGSIRelationship);
+            this.insertContextButton.addEventListener('click', this.insertNGSIContext);
         }
         
         // Window resize handler for editor resizing
@@ -412,6 +463,25 @@ class JsonEditor {
             if (typeof this.onSave === 'function') {
                 this.onSave(this.getValue());
             }
+        }
+    }
+    
+    /**
+     * Handle double-click event to select text between quotes
+     * @param {MouseEvent} e The double-click event
+     */
+    handleDoubleClick = (e) => {
+        const value = this.textarea.value;
+        const start = this.textarea.selectionStart;
+        const end = this.textarea.selectionEnd;
+
+        // Find the nearest quotes around the cursor position
+        const before = value.lastIndexOf('"', start - 1);
+        const after = value.indexOf('"', end);
+
+        if (before !== -1 && after !== -1) {
+            this.textarea.selectionStart = before + 1;
+            this.textarea.selectionEnd = after;
         }
     }
     
@@ -1089,6 +1159,141 @@ class JsonEditor {
         }
         
         return value;
+    }
+
+    /**
+     * Insert NGSI-LD Attribute template at cursor position
+     */
+    insertNGSIAttribute = () => {
+        const attributeTemplate = `"attributeName": {
+    "type": "Property",
+    "value": ""
+}`;
+        
+        // Insert directly as a string template, no need for JSON.stringify
+        const start = this.textarea.selectionStart;
+        const end = this.textarea.selectionEnd;
+        
+        // Insert the template at cursor position
+        this.textarea.value = this.textarea.value.substring(0, start) 
+            + attributeTemplate 
+            + this.textarea.value.substring(end);
+        
+        // Update cursor position after the inserted template
+        const newPosition = start + attributeTemplate.length;
+        this.textarea.selectionStart = this.textarea.selectionEnd = newPosition;
+        
+        // Give focus back to the textarea
+        this.textarea.focus();
+        
+        // Update the display
+        this.updateDisplay();
+        
+        // Show success message
+        this.showValidationMessage('NGSI-LD Attribute template inserted', true);
+        
+        // Trigger onChange callback
+        this.onChange(this.getValue());
+    }
+    
+    /**
+     * Insert NGSI-LD Relationship template at cursor position
+     */
+    insertNGSIRelationship = () => {
+        const relationshipTemplate = `"relationshipName": {
+    "type": "Relationship",
+    "object": "urn:ngsi-ld:Entity:001"
+}`;
+        
+        // Insert directly as a string template, no need for JSON.stringify
+        const start = this.textarea.selectionStart;
+        const end = this.textarea.selectionEnd;
+        
+        // Insert the template at cursor position
+        this.textarea.value = this.textarea.value.substring(0, start) 
+            + relationshipTemplate 
+            + this.textarea.value.substring(end);
+        
+        // Update cursor position after the inserted template
+        const newPosition = start + relationshipTemplate.length;
+        this.textarea.selectionStart = this.textarea.selectionEnd = newPosition;
+        
+        // Give focus back to the textarea
+        this.textarea.focus();
+        
+        // Update the display
+        this.updateDisplay();
+        
+        // Show success message
+        this.showValidationMessage('NGSI-LD Relationship template inserted', true);
+        
+        // Trigger onChange callback
+        this.onChange(this.getValue());
+    }
+    
+    /**
+     * Insert NGSI-LD Context template at cursor position
+     */
+    insertNGSIContext = () => {
+        const contextTemplate = `"@context": [
+    "https://ngsi-ld.sensorsreport.net/synchro-context.jsonld"
+]`;
+        
+        // Insert directly as a string template, no need for JSON.stringify
+        const start = this.textarea.selectionStart;
+        const end = this.textarea.selectionEnd;
+        
+        // Insert the template at cursor position
+        this.textarea.value = this.textarea.value.substring(0, start) 
+            + contextTemplate 
+            + this.textarea.value.substring(end);
+        
+        // Update cursor position after the inserted template
+        const newPosition = start + contextTemplate.length;
+        this.textarea.selectionStart = this.textarea.selectionEnd = newPosition;
+        
+        // Give focus back to the textarea
+        this.textarea.focus();
+        
+        // Update the display
+        this.updateDisplay();
+        
+        // Show success message
+        this.showValidationMessage('NGSI-LD Context template inserted', true);
+        
+        // Trigger onChange callback
+        this.onChange(this.getValue());
+    }
+    
+    /**
+     * Insert JSON at cursor position
+     * @param {Object} jsonObj - The JSON object to insert
+     */
+    insertJsonAtCursor = (jsonObj) => {
+        // Format the object as indented JSON string
+        const formattedJson = JSON.stringify(jsonObj, null, 2);
+        
+        // Get cursor position
+        const start = this.textarea.selectionStart;
+        const end = this.textarea.selectionEnd;
+        
+        // Insert the new content
+        this.textarea.value = this.textarea.value.substring(0, start) 
+            + formattedJson 
+            + this.textarea.value.substring(end);
+        
+        // Update cursor position after the inserted template
+        const newPosition = start + formattedJson.length;
+        this.textarea.selectionStart = this.textarea.selectionEnd = newPosition;
+        
+        // Give focus back to the textarea
+        this.textarea.focus();
+        
+        // Update the display
+        this.updateDisplay();
+        
+        // Trigger onChange callback
+        this.onChange(this.getValue());
     }
 }
 
