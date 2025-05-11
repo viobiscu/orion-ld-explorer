@@ -18,6 +18,7 @@
     
     <!-- Load the non-module version of JsonEditor first for global availability -->
     <script src="js/jsonEditor.js"></script>
+    <script src="js/TabManager.js"></script>
     
     <script>
         // Create functions that will be needed by modules before they load
@@ -56,6 +57,27 @@
                 }
             }
             
+            // Initialize TabManager if it doesn't exist yet
+            if (!window.tabManager) {
+                console.log('Initializing TabManager for handleEntityGet');
+                window.tabManager = new TabManager('#displayArea');
+            }
+            
+            // Extract tab title from URL
+            let tabTitle = 'GET Operation';
+            if (url.includes('/')) {
+                const urlParts = url.split('/');
+                const fileName = urlParts[urlParts.length - 1];
+                tabTitle = fileName.split('.')[0].charAt(0).toUpperCase() + fileName.split('.')[0].slice(1);
+                
+                // Make more user-friendly tab titles
+                if (tabTitle === 'DataProductsGet') tabTitle = 'GET Data Products';
+                else if (tabTitle === 'RelationshipsVisual') tabTitle = 'Visualize Relationships';
+                else if (tabTitle === 'ColorSettings') tabTitle = 'Color Settings';
+                else if (tabTitle === 'Queue') tabTitle = 'Queues';
+                else if (tabTitle === 'Resources') tabTitle = 'Reference';
+            }
+            
             fetch(url)
                 .then(response => {
                     if (!response.ok) {
@@ -64,42 +86,81 @@
                     return response.text();
                 })
                 .then(data => {
-                    const displayArea = document.getElementById('displayArea');
-                    if (displayArea) {
-                        // First, set the HTML content
-                        displayArea.innerHTML = data;
-                        
-                        // Then extract and execute scripts
-                        const scriptTags = displayArea.getElementsByTagName('script');
-                        const scripts = Array.from(scriptTags).map(script => script.innerHTML).join('\n');
-                        
-                        if (scripts) {
-                            // Create a new script element for execution
-                            const scriptElement = document.createElement('script');
-                            scriptElement.textContent = scripts;
-                            document.body.appendChild(scriptElement);
-                        }
-                        
-                        // For entitiesGet.html, explicitly trigger loadSavedQueries function if it exists
-                        if (url === 'inc/entitiesGet.html') {
-                            // Small timeout to ensure the DOM is fully processed
-                            setTimeout(() => {
-                                if (typeof window.loadSavedQueries === 'function') {
-                                    console.log('Explicitly calling loadSavedQueries after loading entitiesGet.html');
-                                    window.loadSavedQueries();
-                                }
-                            }, 150);
-                        }
-                    } else {
-                        console.error('Display area element not found');
+                    // Create a new tab for this content
+                    const tabId = `tab-${Date.now()}`;
+                    const tab = window.tabManager.createTab(tabTitle, tabId);
+                    
+                    // Create content container for this tab
+                    const contentContainer = document.createElement('div');
+                    contentContainer.className = 'editor-tab-content';
+                    contentContainer.id = `${tabId}-content`;
+                    contentContainer.style.height = '100%';
+                    contentContainer.style.display = 'none'; // Hide initially
+                    contentContainer.innerHTML = data;
+                    
+                    // Add the content to the content area
+                    window.tabManager.contentArea.appendChild(contentContainer);
+                    
+                    // Store tab information
+                    window.tabManager.tabs.push({
+                        id: tabId,
+                        tabElement: tab,
+                        contentElement: contentContainer,
+                        editor: null,
+                        mode: 'html'
+                    });
+                    
+                    // Activate the new tab
+                    window.tabManager.activateTab(tabId);
+                    
+                    // Then extract and execute scripts
+                    const scriptTags = contentContainer.getElementsByTagName('script');
+                    const scripts = Array.from(scriptTags).map(script => script.innerHTML).join('\n');
+                    
+                    if (scripts) {
+                        // Create a new script element for execution
+                        const scriptElement = document.createElement('script');
+                        scriptElement.textContent = scripts;
+                        document.body.appendChild(scriptElement);
+                    }
+                    
+                    // Log the operation
+                    if (typeof appendToLogs === 'function') {
+                        appendToLogs(`Opened ${tabTitle} in a new tab`);
                     }
                 })
                 .catch(error => {
                     console.error('Error in handleEntityGet:', error);
-                    const displayArea = document.getElementById('displayArea');
-                    if (displayArea) {
-                        displayArea.innerHTML = `<p>Error loading content: ${error.message}</p>`;
+                    if (typeof appendToLogs === 'function') {
+                        appendToLogs(`Error loading content: ${error.message}`);
                     }
+                    
+                    // Display error in a new tab
+                    const tabId = `error-${Date.now()}`;
+                    const tab = window.tabManager.createTab('Error', tabId);
+                    
+                    // Create content container for this tab
+                    const contentContainer = document.createElement('div');
+                    contentContainer.className = 'editor-tab-content';
+                    contentContainer.id = `${tabId}-content`;
+                    contentContainer.style.height = '100%';
+                    contentContainer.style.display = 'none'; // Hide initially
+                    contentContainer.innerHTML = `<p class="error-message">Error loading content: ${error.message}</p>`;
+                    
+                    // Add the content to the content area
+                    window.tabManager.contentArea.appendChild(contentContainer);
+                    
+                    // Store tab information
+                    window.tabManager.tabs.push({
+                        id: tabId,
+                        tabElement: tab,
+                        contentElement: contentContainer,
+                        editor: null,
+                        mode: 'error'
+                    });
+                    
+                    // Activate the new tab
+                    window.tabManager.activateTab(tabId);
                 });
         };
 
@@ -161,7 +222,7 @@
                 // Determine if this is an entity ID request or a query parameters request
                 let endpoint = '/api/ngsi-ld/v1/entities';
                 
-                // If the query starts with a slash, it's likely an entity ID with optional attributes
+                // Check for different query formats
                 if (queryParams.startsWith('/')) {
                     // Extract entity ID and any remaining parameters
                     const parts = queryParams.substring(1).split('?');
@@ -179,117 +240,68 @@
                 } else if (queryParams.startsWith('?')) {
                     // It's a query parameter string, append it to the base endpoint
                     endpoint = `/api/ngsi-ld/v1/entities${queryParams}`;
+                } else if (queryParams.startsWith('urn:')) {
+                    // This is an entity ID without the leading slash - add it automatically
+                    // This is the key fix for the reported error
+                    endpoint = `/api/ngsi-ld/v1/entities/${queryParams}`;
+                    console.log('Entity ID detected, using endpoint:', endpoint);
                 } else {
                     // If no proper format is detected, show an error
-                    console.error('Invalid query format:', queryParams);
+                    const errorMsg = {
+                        error: 'Invalid query format. Must start with ? for query parameters, / for entity ID, or be a valid urn: entity ID.',
+                        example: '?type=Device or /urn:ngsi-ld:Device:001 or urn:ngsi-ld:Device:001'
+                    };
+                    
+                    // Display error in both editors if available
                     if (window.mainEditor) {
-                        window.mainEditor.setValue(JSON.stringify({
-                            error: 'Invalid query format. Must start with ? for query parameters or / for entity ID.',
-                            example: '?type=Device or /urn:ngsi-ld:Device:001'
-                        }, null, 2));
+                        window.mainEditor.setValue(JSON.stringify(errorMsg, null, 2));
                     }
+                    
+                    // Also update the GET results editor if it exists
+                    if (window.getResultsEditor) {
+                        window.getResultsEditor.setValue(JSON.stringify(errorMsg, null, 2));
+                    }
+                    
                     return;
                 }
                 
-                // Check if this is a type query - if so, use the filterEntitiesByType function
-                // This prevents the double display issue
-                if (queryParams.includes('type=')) {
-                    const typeMatch = queryParams.match(/type=([^&]+)/);
-                    if (typeMatch && typeMatch[1]) {
-                        const entityType = decodeURIComponent(typeMatch[1]);
-                        console.log(`Type query detected (${entityType}), using optimized path`);
-                        
-                        // First clear any existing JSON display to prevent duplicates
-                        const jsonDisplay = document.getElementById('jsonDisplay');
-                        if (jsonDisplay) {
-                            jsonDisplay.remove();
-                        }
-                        
-                        // Show loading indicator
-                        const displayArea = document.getElementById('displayArea');
-                        if (displayArea) {
-                            const loadingDiv = document.createElement('div');
-                            loadingDiv.className = 'loading-indicator';
-                            loadingDiv.textContent = 'Loading data...';
-                            
-                            // Keep the form but add loading indicator
-                            const mainJsonEditor = document.getElementById('mainJsonEditorContainer');
-                            if (mainJsonEditor) {
-                                mainJsonEditor.style.display = 'none';
-                                displayArea.appendChild(loadingDiv);
-                            }
-                        }
-                        
-                        // Use the filterEntitiesByType function and manually display the result
-                        if (typeof window.filterEntitiesByType === 'function') {
-                            window.filterEntitiesByType(entityType)
-                                .then(result => {
-                                    // Remove loading indicator
-                                    const loadingIndicator = document.querySelector('.loading-indicator');
-                                    if (loadingIndicator) {
-                                        loadingIndicator.remove();
-                                    }
-                                    
-                                    // Show the JSON editor again if it was hidden
-                                    const mainJsonEditor = document.getElementById('mainJsonEditorContainer');
-                                    if (mainJsonEditor) {
-                                        mainJsonEditor.style.display = 'block';
-                                    }
-                                    
-                                    // Display result in the main editor
-                                    if (window.mainEditor) {
-                                        window.mainEditor.setValue(JSON.stringify(result, null, 2));
-                                        console.log(`Displayed ${result.length} entities of type "${entityType}" in the editor`);
-                                    }
-                                    
-                                    if (typeof appendToLogs === 'function') {
-                                        appendToLogs(`Retrieved ${result.length} entities of type "${entityType}"`);
-                                    }
-                                })
-                                .catch(error => {
-                                    // Remove loading indicator
-                                    const loadingIndicator = document.querySelector('.loading-indicator');
-                                    if (loadingIndicator) {
-                                        loadingIndicator.remove();
-                                    }
-                                    
-                                    // Show the JSON editor again if it was hidden
-                                    const mainJsonEditor = document.getElementById('mainJsonEditorContainer');
-                                    if (mainJsonEditor) {
-                                        mainJsonEditor.style.display = 'block';
-                                    }
-                                    
-                                    console.error('Error in type query:', error);
-                                    if (window.mainEditor) {
-                                        window.mainEditor.setValue(JSON.stringify({
-                                            error: error.message,
-                                            timestamp: new Date().toISOString()
-                                        }, null, 2));
-                                    }
-                                    
-                                    if (typeof appendToLogs === 'function') {
-                                        appendToLogs(`Error retrieving entities of type "${entityType}": ${error.message}`);
-                                    }
-                                });
-                            return; // Exit early, we're handling display separately
-                        }
-                    }
+                // Show loading indicator in both editors
+                if (window.mainEditor) {
+                    window.mainEditor.setValue("Loading data...");
                 }
                 
-                // Show loading indicator
-                const displayArea = document.getElementById('displayArea');
-                if (displayArea) {
-                    const loadingDiv = document.createElement('div');
-                    loadingDiv.className = 'loading-indicator';
-                    loadingDiv.textContent = 'Loading data...';
-                    
-                    // Keep the form but add loading indicator
-                    const mainJsonEditor = document.getElementById('mainJsonEditorContainer');
-                    if (mainJsonEditor) {
-                        mainJsonEditor.style.display = 'none';
-                        displayArea.appendChild(loadingDiv);
-                    } else {
-                        displayArea.innerHTML = '<div class="loading-indicator">Loading data...</div>';
+                if (window.getResultsEditor) {
+                    window.getResultsEditor.setValue("Loading data...");
+                    // Add loading indicator to the results area header if it exists
+                    const resultsHeader = document.querySelector('.get-results-header');
+                    if (resultsHeader) {
+                        const loadingSpinner = document.createElement('span');
+                        loadingSpinner.className = 'loading-spinner';
+                        loadingSpinner.style.marginLeft = 'auto';
+                        loadingSpinner.style.width = '20px';
+                        loadingSpinner.style.height = '20px';
+                        loadingSpinner.style.border = '2px solid #ccc';
+                        loadingSpinner.style.borderTopColor = '#333';
+                        loadingSpinner.style.borderRadius = '50%';
+                        loadingSpinner.style.animation = 'spin 1s linear infinite';
+                        resultsHeader.appendChild(loadingSpinner);
+                    }
+                } else {
+                    // If getResultsEditor doesn't exist, show a loading indicator in the displayArea
+                    const displayArea = document.getElementById('displayArea');
+                    if (displayArea) {
+                        const loadingDiv = document.createElement('div');
+                        loadingDiv.className = 'loading-indicator';
+                        loadingDiv.textContent = 'Loading data...';
+                        
+                        // Keep the form but add loading indicator
+                        const mainJsonEditor = document.getElementById('mainJsonEditorContainer');
+                        if (mainJsonEditor) {
+                            mainJsonEditor.style.display = 'none';
+                            displayArea.appendChild(loadingDiv);
+                        } else {
+                            displayArea.innerHTML = '<div class="loading-indicator">Loading data...</div>';
+                        }
                     }
                 }
                 
@@ -314,7 +326,15 @@
                     return response.json();
                 })
                 .then(data => {
-                    // Remove loading indicator
+                    // Format the data with proper indentation
+                    const formattedData = JSON.stringify(data, null, 2);
+                    
+                    // Remove loading spinners
+                    const loadingSpinner = document.querySelector('.loading-spinner');
+                    if (loadingSpinner) {
+                        loadingSpinner.remove();
+                    }
+                    
                     const loadingIndicator = document.querySelector('.loading-indicator');
                     if (loadingIndicator) {
                         loadingIndicator.remove();
@@ -326,17 +346,26 @@
                         mainJsonEditor.style.display = 'block';
                     }
                     
-                    // Display data in the main JSON editor
+                    // Update both editors with the response data
                     if (window.mainEditor) {
-                        window.mainEditor.setValue(JSON.stringify(data, null, 2));
+                        window.mainEditor.setValue(formattedData);
+                    }
+                    
+                    // PRIORITY: Update the dedicated GET results editor
+                    if (window.getResultsEditor) {
+                        window.getResultsEditor.setValue(formattedData);
                         
-                        // ALSO update the entity GET results editor if it exists
-                        if (window.getResultsEditor) {
-                            window.getResultsEditor.setValue(JSON.stringify(data, null, 2));
+                        // Highlight the results area to show new data has arrived
+                        const resultsArea = document.querySelector('.get-results-area');
+                        if (resultsArea) {
+                            resultsArea.style.animation = 'highlight-pulse 1s';
+                            setTimeout(() => {
+                                resultsArea.style.animation = '';
+                            }, 1000);
                         }
                     } else if (displayArea) {
                         // Fallback to a simple pre/code block if the JSON editor is not available
-                        displayArea.innerHTML = `<pre id="jsonDisplay"><code class="language-json">${JSON.stringify(data, null, 2)}</code></pre>`;
+                        displayArea.innerHTML = `<pre id="jsonDisplay"><code class="language-json">${formattedData}</code></pre>`;
                         
                         // Apply syntax highlighting if available
                         if (typeof hljs !== 'undefined') {
@@ -353,7 +382,19 @@
                 .catch(error => {
                     console.error('Error in handleGetQuery:', error);
                     
-                    // Remove loading indicator
+                    // Format the error as JSON
+                    const errorData = JSON.stringify({
+                        error: error.message,
+                        endpoint: endpoint,
+                        timestamp: new Date().toISOString()
+                    }, null, 2);
+                    
+                    // Remove loading indicators
+                    const loadingSpinner = document.querySelector('.loading-spinner');
+                    if (loadingSpinner) {
+                        loadingSpinner.remove();
+                    }
+                    
                     const loadingIndicator = document.querySelector('.loading-indicator');
                     if (loadingIndicator) {
                         loadingIndicator.remove();
@@ -365,15 +406,26 @@
                         mainJsonEditor.style.display = 'block';
                     }
                     
-                    // Show error in main editor
+                    // Update both editors with the error
                     if (window.mainEditor) {
-                        window.mainEditor.setValue(JSON.stringify({
-                            error: error.message,
-                            endpoint: endpoint,
-                            timestamp: new Date().toISOString()
-                        }, null, 2));
+                        window.mainEditor.setValue(errorData);
+                    }
+                    
+                    if (window.getResultsEditor) {
+                        window.getResultsEditor.setValue(errorData);
+                        
+                        // Highlight the results area to show error
+                        const resultsArea = document.querySelector('.get-results-area');
+                        if (resultsArea) {
+                            resultsArea.style.animation = 'highlight-error 1s';
+                            resultsArea.style.borderColor = '#f44336';
+                            setTimeout(() => {
+                                resultsArea.style.animation = '';
+                                resultsArea.style.borderColor = '';
+                            }, 3000);
+                        }
                     } else if (displayArea) {
-                        displayArea.innerHTML = `<p>Error: ${error.message}</p>`;
+                        displayArea.innerHTML = `<p class="error-message">Error: ${error.message}</p>`;
                     }
                     
                     if (typeof appendToLogs === 'function') {
@@ -382,8 +434,243 @@
                 });
             } catch (error) {
                 console.error('Unexpected error in handleGetQuery:', error);
+                
+                if (window.getResultsEditor) {
+                    window.getResultsEditor.setValue(JSON.stringify({
+                        unexpectedError: error.message,
+                        stack: error.stack,
+                        timestamp: new Date().toISOString()
+                    }, null, 2));
+                }
             }
         };
+
+        // Function to open the JSON editor directly with specified mode
+        function openEntityEditor(mode) {
+            console.log(`Opening JSON editor directly in ${mode} mode`);
+            
+            // Initialize TabManager if it doesn't exist yet
+            if (!window.tabManager) {
+                console.log('Initializing TabManager');
+                window.tabManager = new TabManager('#displayArea');
+            }
+            
+            // Initial entity templates based on mode
+            const entityTemplate = getEntityTemplate(mode);
+            
+            // Get saved values if available
+            let entityId = '';
+            let initialValue = null;
+            
+            // Try to load saved values for the current mode
+            const savedJson = localStorage.getItem(`entity${mode.charAt(0).toUpperCase() + mode.slice(1)}Json`);
+            const savedEntityId = localStorage.getItem(`entity${mode.charAt(0).toUpperCase() + mode.slice(1)}Id`);
+            
+            if (savedJson) {
+                try {
+                    initialValue = JSON.parse(savedJson);
+                } catch (e) {
+                    console.warn('Could not parse saved JSON, using template instead', e);
+                    initialValue = entityTemplate;
+                }
+            } else {
+                initialValue = entityTemplate;
+            }
+            
+            if (savedEntityId && ['put', 'patch'].includes(mode)) {
+                entityId = savedEntityId;
+            } else if (['put', 'patch'].includes(mode)) {
+                // For PUT/PATCH, extract ID from template if no saved ID
+                entityId = initialValue.id || '';
+            }
+            
+            // Create tab title based on the mode
+            const tabTitle = `${mode.toUpperCase()} Entity`;
+            
+            // Create editor options
+            const editorOptions = {
+                initialValue: JSON.stringify(initialValue, null, 2),
+                height: 500,
+                resize: true,
+                mode: mode,
+                entityId: entityId,
+                onEntityAction: handleEntityAction,
+                onSave: function(value) {
+                    try {
+                        const parsedValue = JSON.parse(value);
+                        // Save to localStorage for persistence
+                        localStorage.setItem(`entity${mode.charAt(0).toUpperCase() + mode.slice(1)}Json`, JSON.stringify(parsedValue));
+                        console.log(`Saved ${mode} JSON to localStorage`);
+                    } catch (e) {
+                        console.error('Error saving JSON to localStorage:', e);
+                    }
+                }
+            };
+            
+            // Create a new tab with the editor
+            const tabId = window.tabManager.createEditorTab(tabTitle, editorOptions);
+            console.log(`Created new tab with ID: ${tabId} for ${mode} mode`);
+            
+            // For backward compatibility, set window.entityEditor to the new editor
+            const tab = window.tabManager.getTabById(tabId);
+            if (tab && tab.editor) {
+                window.entityEditor = tab.editor;
+            }
+            
+            // Log the operation
+            if (typeof appendToLogs === 'function') {
+                appendToLogs(`Opened ${mode.toUpperCase()} Entity editor in a new tab`);
+            }
+        }
+        
+        // Helper function to get operation description
+        function getOperationDescription(mode) {
+            const descriptions = {
+                'post': "This form creates a new entity in the Orion-LD Context Broker.",
+                'put': "This form replaces an existing entity in the Orion-LD Context Broker.",
+                'patch': "This form updates specific fields of an existing entity in the Orion-LD Context Broker."
+            };
+            return descriptions[mode] || '';
+        }
+        
+        // Helper function to get entity template based on mode
+        function getEntityTemplate(mode) {
+            const uuid = generateUuid();
+            const now = new Date().toISOString();
+            
+            const templates = {
+                'get': {
+                    "id": "",
+                    "type": "",
+                    "@context": [
+                        "https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context.jsonld"
+                    ]
+                },
+                'post': {
+                    "id": "urn:ngsi-ld:Entity:" + uuid,
+                    "type": "Device",
+                    "@context": [
+                        "https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context.jsonld"
+                    ],
+                    "name": {
+                        "type": "Property",
+                        "value": "New Entity"
+                    },
+                    "timestamp": {
+                        "type": "Property",
+                        "value": now
+                    }
+                },
+                'put': {
+                    "id": "urn:ngsi-ld:Entity:" + uuid,
+                    "type": "Device",
+                    "@context": [
+                        "https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context.jsonld"
+                    ],
+                    "name": {
+                        "type": "Property",
+                        "value": "Updated Entity"
+                    },
+                    "timestamp": {
+                        "type": "Property",
+                        "value": now
+                    },
+                    "status": {
+                        "type": "Property",
+                        "value": "active"
+                    }
+                },
+                'patch': {
+                    "name": {
+                        "type": "Property",
+                        "value": "Patched Entity Name"
+                    },
+                    "timestamp": {
+                        "type": "Property",
+                        "value": now
+                    }
+                }
+            };
+            
+            return templates[mode] || templates.post;
+        }
+        
+        // Generate a UUID for entity IDs
+        function generateUuid() {
+            return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
+                const r = Math.random() * 16 | 0;
+                const v = c === 'x' ? r : (r & 0x3 | 0x8);
+                return v.toString(16);
+            });
+        }
+        
+        // Handle entity operations (Create, Update, Patch)
+        function handleEntityAction(action) {
+            try {
+                console.log('Entity action:', action);
+                
+                if (!action.data) {
+                    throw new Error('No entity data provided.');
+                }
+                
+                // For PUT and PATCH, verify entity ID is provided
+                if (['put', 'patch'].includes(action.mode) && !action.entityId) {
+                    throw new Error('Entity ID is required for PUT and PATCH operations.');
+                }
+                
+                // Save entity ID to localStorage
+                if (action.entityId) {
+                    localStorage.setItem(`entity${action.mode.charAt(0).toUpperCase() + action.mode.slice(1)}Id`, action.entityId);
+                }
+                
+                // Handle different operations
+                switch (action.mode) {
+                    case 'post':
+                        console.log('Creating entity:', action.data);
+                        // Call the API function for entity creation
+                        if (typeof window.processPostQuery === 'function') {
+                            window.processPostQuery(JSON.stringify(action.data));
+                        } else {
+                            console.error('processPostQuery function not available');
+                            alert('API function for entity creation is not available.');
+                        }
+                        break;
+                        
+                    case 'put':
+                        console.log(`Updating entity ${action.entityId}:`, action.data);
+                        // Call the API function for entity update
+                        if (typeof window.processPutQuery === 'function') {
+                            window.processPutQuery(action.entityId, JSON.stringify(action.data));
+                        } else {
+                            console.error('processPutQuery function not available');
+                            alert('API function for entity update is not available.');
+                        }
+                        break;
+                        
+                    case 'patch':
+                        console.log(`Patching entity ${action.entityId}:`, action.data);
+                        // Call the API function for entity patch
+                        if (typeof window.processPatchQuery === 'function') {
+                            window.processPatchQuery(action.entityId, JSON.stringify(action.data));
+                        } else {
+                            console.error('processPatchQuery function not available');
+                            alert('API function for entity patch is not available.');
+                        }
+                        break;
+                        
+                    default:
+                        throw new Error(`Unsupported operation mode: ${action.mode}`);
+                }
+                
+                if (typeof appendToLogs === 'function') {
+                    appendToLogs(`${action.mode.toUpperCase()} operation executed for ${action.entityId || 'new entity'}`);
+                }
+                
+            } catch (error) {
+                console.error('Error performing entity operation:', error);
+                alert('Error: ' + error.message);
+            }
+        }
     </script>
     
     <!-- Load our scripts with defer attribute and module type -->
@@ -506,6 +793,106 @@
         0% { transform: rotate(0deg); }
         100% { transform: rotate(360deg); }
       }
+
+      /* Toolbar styling */
+      .toolbar {
+        display: flex;
+        gap: 10px;
+        padding: 10px;
+        background-color: #f8f9fa;
+        border-bottom: 1px solid #dee2e6;
+        margin-bottom: 10px;
+      }
+      
+      .toolbar button {
+        padding: 6px 12px;
+        border-radius: 4px;
+        border: 1px solid transparent;
+        cursor: pointer;
+        font-size: 14px;
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        transition: all 0.2s ease;
+      }
+      
+      .toolbar button:hover {
+        opacity: 0.9;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+      }
+      
+      .toolbar button i {
+        font-size: 16px;
+      }
+      
+      /* Editor tabs styling */
+      .editor-tabs-container {
+        display: flex;
+        flex-direction: column;
+        height: 100%;
+        overflow: hidden;
+      }
+      
+      .editor-tabs-bar {
+        display: flex;
+        background-color: #f0f0f0;
+        border-bottom: 1px solid #ddd;
+        overflow-x: auto;
+        overflow-y: hidden;
+        white-space: nowrap;
+      }
+      
+      .editor-tab {
+        display: inline-flex;
+        align-items: center;
+        padding: 8px 12px;
+        border-right: 1px solid #ddd;
+        cursor: pointer;
+        user-select: none;
+        position: relative;
+        max-width: 200px;
+        transition: background-color 0.2s ease;
+      }
+      
+      .editor-tab:hover {
+        background-color: #e9e9e9;
+      }
+      
+      .editor-tab.active {
+        background-color: #fff;
+        border-bottom: 2px solid #007bff;
+      }
+      
+      .tab-close-btn {
+        margin-left: 8px;
+        font-weight: bold;
+        font-size: 16px;
+        line-height: 1;
+        cursor: pointer;
+        padding: 0 4px;
+        border-radius: 50%;
+        color: #666;
+      }
+      
+      .tab-close-btn:hover {
+        background-color: #ddd;
+        color: #333;
+      }
+      
+      .editor-tabs-content {
+        flex-grow: 1;
+        overflow: hidden;
+        position: relative;
+      }
+      
+      .editor-tab-content {
+        height: 100%;
+        display: none;
+      }
+      
+      .editor-tab-content.active {
+        display: block;
+      }
     </style>
 </head>
 <body>
@@ -559,19 +946,19 @@
                 <ul class="nested">
                     <li>
                         <i class="fa-regular fa-file custom-icon"></i><span>Entities</span>
-                        <button class="method-button post-button" onclick="handleEntityGet('inc/entitiesPost.html')">POST</button>
+                        <button class="method-button get-button" onclick="openEntityEditor('get')">GET</button>
                     </li>
                     <li>
                         <i class="fa-regular fa-file custom-icon"></i><span>Entities</span>
-                        <button class="method-button get-button" onclick="handleEntityGet('inc/entitiesGet.html')">GET</button>
+                        <button class="method-button post-button" onclick="openEntityEditor('post')">POST</button>
                     </li>
                     <li>
                         <i class="fa-regular fa-file custom-icon"></i><span>Entities</span>
-                        <button class="method-button put-button" onclick="handleEntityGet('inc/entitiesPut.html')">PUT</button>
+                        <button class="method-button put-button" onclick="openEntityEditor('put')">PUT</button>
                     </li>
                     <li>
                         <i class="fa-regular fa-file custom-icon"></i><span>Entities</span>
-                        <button class="method-button patch-button" onclick="handleEntityGet('inc/entitiesPatch.html')">PATCH</button>
+                        <button class="method-button patch-button" onclick="openEntityEditor('patch')">PATCH</button>
                     </li>
                     <li>
                         <i class="fa-regular fa-file custom-icon"></i><span>Entities</span>
@@ -695,8 +1082,8 @@
     <script>
         // Initialize the main JSON editor when the page loads
         document.addEventListener('DOMContentLoaded', function() {
-            // Initialize the main editor
-            initializeMainEditor();
+            // Initialize TabManager first
+            initializeTabManager();
             
             // Setup token dialog
             setupTokenButton();
@@ -704,6 +1091,73 @@
             // Setup Clear Auth and Clear All buttons
             setupClearButtons();
         });
+
+        // Function to initialize TabManager and load GET Entities tab
+        function initializeTabManager() {
+            console.log('Initializing TabManager');
+            
+            // Create TabManager
+            window.tabManager = new TabManager('#displayArea');
+            
+            // Create a default welcome tab instead of loading entitiesGet.html
+            const welcomeTabId = `welcome-tab-${Date.now()}`;
+            const welcomeTab = window.tabManager.createTab('Welcome', welcomeTabId);
+            
+            // Create content container for welcome tab
+            const contentContainer = document.createElement('div');
+            contentContainer.className = 'editor-tab-content';
+            contentContainer.id = `${welcomeTabId}-content`;
+            contentContainer.style.height = '100%';
+            contentContainer.style.display = 'none'; // Hide initially
+            
+            // Add welcome content
+            contentContainer.innerHTML = `
+                <div style="padding: 20px;">
+                    <h2>Welcome to SensorsReport</h2>
+                    <p>This interface allows you to interact with the Orion-LD Context Broker.</p>
+                    <p>Use the sidebar navigation to:</p>
+                    <ul>
+                        <li>Create, update, and delete entities</li>
+                        <li>Work with data products</li>
+                        <li>Visualize entity relationships</li>
+                        <li>Access queue management</li>
+                    </ul>
+                    <p>Select an operation from the sidebar to get started.</p>
+                </div>
+            `;
+            
+            // Add the content to the content area
+            window.tabManager.contentArea.appendChild(contentContainer);
+            
+            // Store tab information
+            window.tabManager.tabs.push({
+                id: welcomeTabId,
+                tabElement: welcomeTab,
+                contentElement: contentContainer,
+                editor: null,
+                mode: 'html'
+            });
+            
+            // Activate the welcome tab
+            window.tabManager.activateTab(welcomeTabId);
+        }
+        
+        // Function to switch between entity operation modes
+        function switchToMode(mode) {
+            // This function will be called from the sidebar navigation
+            // It will be handled by the entitiesOperations.html page once loaded
+            console.log(`Switching to entity operation mode: ${mode}`);
+            
+            // Set a small delay to ensure the page has loaded
+            setTimeout(() => {
+                if (typeof window.switchToMode === 'function') {
+                    // Call the switchToMode function in the entitiesOperations.html page
+                    window.switchToMode(mode);
+                } else {
+                    console.error('switchToMode function not available in the loaded page');
+                }
+            }, 300);
+        }
         
         // Function to set up the Clear Auth and Clear All buttons
         function setupClearButtons() {
@@ -787,77 +1241,6 @@
                     window.location.reload();
                 }
             }
-        }
-        
-        function initializeMainEditor() {
-            if (typeof JsonEditor !== 'function') {
-                console.error('JsonEditor not available. Please reload the page.');
-                return;
-            }
-            
-            try {
-                // Check if the main editor already exists (initialized by AppInitializer)
-                if (window.mainEditor) {
-                    console.log('Main JSON editor already initialized by AppInitializer, skipping duplicate initialization');
-                    
-                    // Setup global function to update the main display
-                    setupUpdateMainDisplayFunction();
-                    return;
-                }
-                
-                // Create the main editor instance only if it doesn't exist
-                console.log('Creating main JSON editor from index.html (fallback)');
-                window.mainEditor = new JsonEditor({
-                    containerId: 'mainJsonEditorContainer',
-                    initialValue: JSON.stringify({ 
-                        message: "Welcome to Orion-LD Explorer",
-                        instructions: "Select an operation from the sidebar to get started."
-                    }, null, 2),
-                    height: 500,
-                    resize: true
-                });
-                
-                console.log('Main JSON editor initialized from index.html');
-                
-                // Setup global function to update the main display
-                setupUpdateMainDisplayFunction();
-            } catch (e) {
-                console.error('Error initializing main JSON editor:', e);
-            }
-        }
-        
-        // Extracted the updateMainDisplay function setup to a separate function
-        function setupUpdateMainDisplayFunction() {
-            // Setup global function to update the main display
-            window.updateMainDisplay = function(json) {
-                if (!window.mainEditor) {
-                    console.error('Main editor not initialized');
-                    return;
-                }
-                
-                try {
-                    // Format the JSON if it's a string
-                    if (typeof json === 'string') {
-                        try {
-                            // Try to parse it as JSON
-                            const parsed = JSON.parse(json);
-                            json = JSON.stringify(parsed, null, 2);
-                        } catch (e) {
-                            // If it's not valid JSON, just use it as is
-                            console.warn('Invalid JSON provided to updateMainDisplay:', e);
-                        }
-                    } else if (typeof json === 'object') {
-                        // Convert object to formatted JSON string
-                        json = JSON.stringify(json, null, 2);
-                    }
-                    
-                    // Update the editor
-                    window.mainEditor.setValue(json);
-                    console.log('Main display updated');
-                } catch (e) {
-                    console.error('Error updating main display:', e);
-                }
-            };
         }
         
         function setupTokenButton() {

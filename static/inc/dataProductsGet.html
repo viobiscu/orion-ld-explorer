@@ -13,8 +13,174 @@
       </ul>
       <p>The response will be displayed in the JSON viewer below.</p>
     </div>
+    
+    <div class="query-section">
+      <div class="input-group">
+        <label for="dataProductIdInput">Data Product ID:</label>
+        <input type="text" id="dataProductIdInput" placeholder="Enter Data Product ID" />
+      </div>
+    </div>
+    
+    <!-- GET Results Editor -->
+    <div id="getResultsContainer" style="width: 100%; height: 400px; margin-top: 20px;"></div>
   </div>
   <div class="form-footer">
     <small>This form retrieves Data Products from the system.</small>
   </div>
 </div>
+
+<script>
+  // Initialize the GET editor when the tab loads
+  (function() {
+    // Create a JsonEditor in GET mode for displaying results
+    const getEditor = new JsonEditor({
+      containerId: 'getResultsContainer',
+      height: 400,
+      resize: true,
+      showToolbar: true,
+      showLineNumbers: true,
+      mode: 'get',  // This is key - setting mode to 'get' creates the dedicated display area
+      initialValue: JSON.stringify({
+        message: "Ready to fetch Data Products",
+        instructions: "Click 'Get All' or enter an ID and click 'Get By ID'"
+      }, null, 2)
+    });
+    
+    // Store the editor as window.getResultsEditor for the handleGetQuery function to use
+    window.getResultsEditor = getEditor;
+    
+    console.log("GET mode JsonEditor initialized for Data Products");
+  })();
+  
+  // Fetch all data products
+  function fetchAllDataProducts() {
+    try {
+      // Initialize DataProductClient (imported from dataProducts.js)
+      const client = new DataProductClient();
+      
+      // Show loading message in the GET results editor
+      if (window.getResultsEditor) {
+        window.getResultsEditor.setValue(JSON.stringify({ 
+          message: "Loading all Data Products...",
+          timestamp: new Date().toISOString()
+        }, null, 2));
+      }
+      
+      // Log the request
+      console.log("Fetching all Data Products");
+      appendToLogs("Fetching all Data Products");
+      
+      // Make the API request
+      client.makeRequest('/api/data-products', 'GET')
+        .then(response => {
+          console.log("Data Products fetched successfully:", response);
+          
+          // Display the results in the GET results editor
+          if (window.getResultsEditor) {
+            window.getResultsEditor.setValue(JSON.stringify(response, null, 2));
+          } else {
+            console.error("GET results editor not found");
+            displayJSON(response); // Fallback to displayJSON from dataProducts.js
+          }
+          
+          appendToLogs("Data Products retrieved successfully");
+        })
+        .catch(error => {
+          console.error("Error fetching Data Products:", error);
+          const errorMsg = {
+            error: "Failed to fetch Data Products",
+            details: error.message || String(error),
+            timestamp: new Date().toISOString()
+          };
+          
+          // Display error in GET results editor
+          if (window.getResultsEditor) {
+            window.getResultsEditor.setValue(JSON.stringify(errorMsg, null, 2));
+          } else {
+            displayJSON(errorMsg);
+          }
+          
+          appendToLogs(`Error fetching Data Products: ${error.message || error}`);
+        });
+    } catch (error) {
+      console.error("Unexpected error in fetchAllDataProducts:", error);
+      appendToLogs(`Unexpected error: ${error.message || error}`);
+    }
+  }
+  
+  // Fetch a specific data product by ID
+  function fetchDataProductById() {
+    try {
+      // Get the ID from the input field
+      const dataProductId = document.getElementById('dataProductIdInput').value.trim();
+      
+      if (!dataProductId) {
+        // Show error if no ID is provided
+        const errorMsg = {
+          error: "Data Product ID is required",
+          message: "Please enter a Data Product ID",
+          timestamp: new Date().toISOString()
+        };
+        
+        if (window.getResultsEditor) {
+          window.getResultsEditor.setValue(JSON.stringify(errorMsg, null, 2));
+        } else {
+          displayJSON(errorMsg);
+        }
+        
+        appendToLogs("Error: Data Product ID is required");
+        return;
+      }
+      
+      // Initialize DataProductClient
+      const client = new DataProductClient();
+      
+      // Show loading message
+      if (window.getResultsEditor) {
+        window.getResultsEditor.setValue(JSON.stringify({ 
+          message: `Loading Data Product: ${dataProductId}...`,
+          timestamp: new Date().toISOString()
+        }, null, 2));
+      }
+      
+      // Log the request
+      console.log(`Fetching Data Product with ID: ${dataProductId}`);
+      appendToLogs(`Fetching Data Product: ${dataProductId}`);
+      
+      // Make the API request
+      client.makeRequest(`/api/data-products/${dataProductId}`, 'GET')
+        .then(response => {
+          console.log("Data Product fetched successfully:", response);
+          
+          // Display the results in the GET results editor
+          if (window.getResultsEditor) {
+            window.getResultsEditor.setValue(JSON.stringify(response, null, 2));
+          } else {
+            displayJSON(response);
+          }
+          
+          appendToLogs(`Data Product ${dataProductId} retrieved successfully`);
+        })
+        .catch(error => {
+          console.error(`Error fetching Data Product ${dataProductId}:`, error);
+          const errorMsg = {
+            error: `Failed to fetch Data Product: ${dataProductId}`,
+            details: error.message || String(error),
+            timestamp: new Date().toISOString()
+          };
+          
+          // Display error in GET results editor
+          if (window.getResultsEditor) {
+            window.getResultsEditor.setValue(JSON.stringify(errorMsg, null, 2));
+          } else {
+            displayJSON(errorMsg);
+          }
+          
+          appendToLogs(`Error fetching Data Product ${dataProductId}: ${error.message || error}`);
+        });
+    } catch (error) {
+      console.error("Unexpected error in fetchDataProductById:", error);
+      appendToLogs(`Unexpected error: ${error.message || error}`);
+    }
+  }
+</script>

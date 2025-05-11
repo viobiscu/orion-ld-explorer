@@ -336,6 +336,100 @@ class OrionLDClient {
     }
 }
 
+/**
+ * Handle GET query results display
+ * @param {string} query The query string that was executed
+ * @param {Object|Array} data The data to display
+ */
+window.handleGetQuery = function(query) {
+    console.log('Executing GET query:', query);
+    
+    // Create the API client
+    const client = new OrionLDClient();
+    
+    // Show loading state in the editor if available
+    if (window.getResultsEditor) {
+        window.getResultsEditor.setValue(JSON.stringify({
+            status: "loading",
+            query: query,
+            message: "Fetching data..."
+        }, null, 2));
+    }
+    
+    // Handle different query formats
+    let endpoint = '';
+    if (query.startsWith('?')) {
+        // Query parameters format
+        endpoint = `${client.baseURL}/entities${query}`;
+    } else if (query.startsWith('/')) {
+        // Path format with leading slash
+        endpoint = `${client.baseURL}${query}`;
+    } else if (query.startsWith('urn:')) {
+        // URN format without leading slash
+        endpoint = `${client.baseURL}/entities/${encodeURIComponent(query)}`;
+    } else {
+        // Default to entities endpoint with the query as a parameter
+        endpoint = `${client.baseURL}/entities/${encodeURIComponent(query)}`;
+    }
+    
+    // Execute the query
+    fetch(endpoint, {
+        method: 'GET',
+        headers: client.headers,
+        credentials: 'include'
+    })
+    .then(response => {
+        if (!response.ok) {
+            return response.text().then(text => {
+                try {
+                    // Try to parse as JSON
+                    return JSON.parse(text);
+                } catch (e) {
+                    // Return as plain text error
+                    throw new Error(`${response.status} ${response.statusText}: ${text}`);
+                }
+            });
+        }
+        return response.json();
+    })
+    .then(data => {
+        console.log('GET query result:', data);
+        
+        // Set the data in the GET results editor
+        if (window.getResultsEditor) {
+            window.getResultsEditor.setValue(JSON.stringify(data, null, 2));
+            
+            // Log the operation
+            appendToLogs(`GET query executed: ${query}`);
+        } else {
+            console.error('GET results editor not available');
+            
+            // Try setting in main editor as fallback
+            if (window.mainEditor) {
+                window.mainEditor.setValue(JSON.stringify(data, null, 2));
+                appendToLogs(`GET query executed (main editor): ${query}`);
+            }
+        }
+    })
+    .catch(error => {
+        console.error('GET query error:', error);
+        
+        // Display error in the GET results editor
+        if (window.getResultsEditor) {
+            window.getResultsEditor.setValue(JSON.stringify({
+                error: error.message,
+                query: query,
+                timestamp: new Date().toISOString()
+            }, null, 2));
+            
+            // Log the error
+            appendToLogs(`GET query error: ${error.message}`);
+        } else {
+            console.error('GET results editor not available for error display');
+        }
+    });
+};
+
 // Make OrionLDClient globally available
 window.OrionLDClient = OrionLDClient;
 

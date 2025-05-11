@@ -860,23 +860,40 @@ export async function filterEntitiesByType(type) {
         const searchClient = new OrionLDSearchClient();
         const entities = await searchClient.getEntitiesByType(type);
         
-        // Make sure we're using the correct display method with a more explicit approach
-        if (window.mainEditor && typeof window.mainEditor.setValue === 'function') {
-            // First convert to string with proper formatting
-            const jsonString = JSON.stringify(entities, null, 2);
-            // Then set the value in the editor
-            window.mainEditor.setValue(jsonString);
-            console.log(`Successfully displayed ${entities.length} entities of type "${type}" in mainEditor`);
+        // Ensure we have a valid response
+        if (!entities || entities.error) {
+            throw new Error(entities?.error || 'Failed to retrieve entities');
+        }
+        
+        // Create a new tab to display the results
+        if (window.tabManager) {
+            const tabId = `entities-${type}-${Date.now()}`;
+            const tabTitle = `${type} Entities`;
+            
+            // Create tab with JSON editor
+            window.tabManager.createEditorTab(tabTitle, {
+                initialValue: JSON.stringify(entities, null, 2),
+                readOnly: true, // Make it read-only since it's just for display
+                mode: 'get',
+                height: 500
+            });
+            
+            console.log(`Successfully displayed ${entities.length} entities of type "${type}" in new tab`);
         } else {
-            // Fallback to the utility function if mainEditor is not available
-            displayJSON(entities);
-            console.warn('mainEditor not available in filterEntitiesByType, using fallback displayJSON');
+            // Fallback to the main editor if tab manager isn't available
+            if (window.mainEditor && typeof window.mainEditor.setValue === 'function') {
+                window.mainEditor.setValue(JSON.stringify(entities, null, 2));
+                console.log(`Successfully displayed ${entities.length} entities of type "${type}" in mainEditor`);
+            } else {
+                // Last resort fallback to the utility function
+                displayJSON(entities);
+                console.warn('mainEditor not available in filterEntitiesByType, using fallback displayJSON');
+            }
         }
         
         // Also update the entity GET results editor if it exists (for consistency)
         if (window.getResultsEditor && typeof window.getResultsEditor.setValue === 'function') {
             window.getResultsEditor.setValue(JSON.stringify(entities, null, 2));
-            console.log('Updated getResultsEditor with entity data');
         }
         
         appendToLogs(`Retrieved ${entities.length} entities of type "${type}"`);

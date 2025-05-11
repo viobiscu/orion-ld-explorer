@@ -11,7 +11,7 @@ class AuthManager {
         
         // Backend base URL
         // Update this to match your actual backend URL (where the Python app is running)
-        this.backendBaseUrl = 'http://localhost:5000';
+        this.backendBaseUrl = window.location.origin;  // Use the same origin as the current page instead of hardcoded localhost
         
         // Keycloak configuration - same as backend config
         this.keycloakConfig = {
@@ -31,14 +31,128 @@ class AuthManager {
         // Set up event listeners
         this.setupEventListeners();
         
-        // Check authentication status on startup
-        this.checkAuthStatus();
+        // Add an offline mode check before checking authentication
+        this.checkOfflineMode();
         
         // Make logout method available globally for direct access if needed
         window.doLogout = () => this.logout();
         
         // IMPORTANT: Expose this instance to window.AuthBackend for global access
         window.AuthBackend = this;
+    }
+
+    /**
+     * Check if the application is running in offline mode without a backend
+     */
+    checkOfflineMode() {
+        // Check if the application is running locally without a backend
+        if (window.location.hostname === 'localhost' || 
+            window.location.hostname === '127.0.0.1' || 
+            window.location.protocol === 'file:') {
+            
+            console.log('Detected offline mode, skipping authentication check');
+            
+            // Set a flag to indicate we're in offline mode
+            this.offlineMode = true;
+            
+            // Set a default user for offline mode
+            this.isUserAuthenticated = true;
+            this.userInfo = {
+                username: 'Offline User',
+                tenant: this.tenant
+            };
+            
+            // Update UI with offline user info
+            this.updateUIWithUserInfo();
+        } else {
+            // Not in offline mode, proceed with normal authentication check
+            this.offlineMode = false;
+            this.checkAuthStatus();
+        }
+    }
+    
+    /**
+     * Show authentication error to user
+     * @param {string} message - Error message to display
+     */
+    showAuthError(message) {
+        console.error('Authentication error:', message);
+        
+        // Create error notification element
+        const errorDiv = document.createElement('div');
+        errorDiv.className = 'auth-error-notification';
+        errorDiv.style.position = 'fixed';
+        errorDiv.style.top = '20px';
+        errorDiv.style.left = '50%';
+        errorDiv.style.transform = 'translateX(-50%)';
+        errorDiv.style.backgroundColor = '#f8d7da';
+        errorDiv.style.color = '#721c24';
+        errorDiv.style.padding = '15px 20px';
+        errorDiv.style.borderRadius = '5px';
+        errorDiv.style.boxShadow = '0 4px 6px rgba(0,0,0,0.1)';
+        errorDiv.style.zIndex = '10000';
+        errorDiv.style.maxWidth = '80%';
+        errorDiv.style.width = 'auto';
+        
+        // Add error icon and message
+        errorDiv.innerHTML = `
+            <div style="display: flex; align-items: center;">
+                <div style="margin-right: 10px; font-size: 24px;">⚠️</div>
+                <div>
+                    <strong>Authentication Error</strong>
+                    <p style="margin: 5px 0 0 0;">${message}</p>
+                </div>
+                <button style="margin-left: 15px; background: none; border: none; font-size: 18px; cursor: pointer; color: #721c24;">&times;</button>
+            </div>
+        `;
+        
+        // Add to document
+        document.body.appendChild(errorDiv);
+        
+        // Add click handler to close button
+        const closeButton = errorDiv.querySelector('button');
+        if (closeButton) {
+            closeButton.addEventListener('click', () => {
+                errorDiv.remove();
+            });
+        }
+        
+        // Auto-remove after 8 seconds
+        setTimeout(() => {
+            if (errorDiv.parentNode) {
+                errorDiv.remove();
+            }
+        }, 8000);
+        
+        // Fallback to alert if we're in a state where DOM manipulation might not work
+        if (document.readyState !== 'complete') {
+            alert('Authentication Error: ' + message);
+        }
+        
+        // Also update any login error message elements in the DOM
+        const loginErrorElements = document.querySelectorAll('.login-error, #loginError');
+        loginErrorElements.forEach(element => {
+            element.textContent = message;
+            element.style.display = 'block';
+        });
+        
+        return false;
+    }
+    
+    /**
+     * Handle authentication errors
+     * @param {Error} error - The error object
+     */
+    handleAuthError(error) {
+        console.error('Authentication error:', error);
+        
+        // Display error to user
+        this.showAuthError('Authentication failed: ' + error.message);
+        
+        // Clear any stale authentication data
+        this.clearAuthState();
+        
+        return false;
     }
 
     /**
