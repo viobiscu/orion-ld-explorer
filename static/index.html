@@ -206,11 +206,21 @@
         };
 
         // Define handleGetQuery function to handle entity queries properly
-        // This function needs to be exposed globally as it's called by loaded HTML content
         window.handleGetQuery = function(queryParams) {
             console.log('DEBUG: handleGetQuery called in index.html with:', queryParams);
             
             try {
+                // Validate input - ensure it's not browser messages or invalid content
+                if (!queryParams || typeof queryParams !== 'string') {
+                    throw new Error('Invalid query parameters');
+                }
+
+                // Filter out browser messages that might get caught in the input
+                if (queryParams.includes('Chrome is moving') || queryParams.includes('auth-backend.js')) {
+                    console.warn('Filtered out browser message from query params');
+                    return;
+                }
+
                 // Initialize the OrionLDClient
                 if (typeof OrionLDClient !== 'function') {
                     console.error('OrionLDClient is not available');
@@ -221,91 +231,43 @@
                 
                 // Determine if this is an entity ID request or a query parameters request
                 let endpoint = '/api/ngsi-ld/v1/entities';
+                let isEntityQuery = false;
+                let entityId = null;
+                
+                // Clean the queryParams - remove any browser console messages that might have been included
+                queryParams = queryParams.split('\n')[0].trim();
                 
                 // Check for different query formats
                 if (queryParams.startsWith('/')) {
                     // Extract entity ID and any remaining parameters
                     const parts = queryParams.substring(1).split('?');
-                    const entityId = parts[0];
+                    entityId = parts[0];
+                    isEntityQuery = true;
                     
-                    if (entityId) {
-                        // If it's a specific entity request
-                        endpoint = `/api/ngsi-ld/v1/entities/${entityId}`;
-                        
-                        // Add any query parameters if present
-                        if (parts.length > 1 && parts[1]) {
+                    if (entityId && entityId.startsWith('urn:')) {
+                        endpoint = `/api/ngsi-ld/v1/entities/${encodeURIComponent(entityId)}`;
+                        if (parts[1]) {
                             endpoint += `?${parts[1]}`;
                         }
                     }
-                } else if (queryParams.startsWith('?')) {
-                    // It's a query parameter string, append it to the base endpoint
-                    endpoint = `/api/ngsi-ld/v1/entities${queryParams}`;
                 } else if (queryParams.startsWith('urn:')) {
-                    // This is an entity ID without the leading slash - add it automatically
-                    // This is the key fix for the reported error
-                    endpoint = `/api/ngsi-ld/v1/entities/${queryParams}`;
-                    console.log('Entity ID detected, using endpoint:', endpoint);
+                    // Direct URN format
+                    entityId = queryParams;
+                    isEntityQuery = true;
+                    endpoint = `/api/ngsi-ld/v1/entities/${encodeURIComponent(queryParams)}`;
+                } else if (queryParams.startsWith('?')) {
+                    // Query parameters format
+                    endpoint = `/api/ngsi-ld/v1/entities${queryParams}`;
+                } else if (queryParams.match(/^[a-zA-Z0-9_-]+$/)) {
+                    // Simple ID format
+                    entityId = queryParams;
+                    isEntityQuery = true;
+                    endpoint = `/api/ngsi-ld/v1/entities/${encodeURIComponent(queryParams)}`;
                 } else {
-                    // If no proper format is detected, show an error
-                    const errorMsg = {
-                        error: 'Invalid query format. Must start with ? for query parameters, / for entity ID, or be a valid urn: entity ID.',
-                        example: '?type=Device or /urn:ngsi-ld:Device:001 or urn:ngsi-ld:Device:001'
-                    };
-                    
-                    // Display error in both editors if available
-                    if (window.mainEditor) {
-                        window.mainEditor.setValue(JSON.stringify(errorMsg, null, 2));
-                    }
-                    
-                    // Also update the GET results editor if it exists
-                    if (window.getResultsEditor) {
-                        window.getResultsEditor.setValue(JSON.stringify(errorMsg, null, 2));
-                    }
-                    
+                    console.warn('Unrecognized query format:', queryParams);
                     return;
                 }
                 
-                // Show loading indicator in both editors
-                if (window.mainEditor) {
-                    window.mainEditor.setValue("Loading data...");
-                }
-                
-                if (window.getResultsEditor) {
-                    window.getResultsEditor.setValue("Loading data...");
-                    // Add loading indicator to the results area header if it exists
-                    const resultsHeader = document.querySelector('.get-results-header');
-                    if (resultsHeader) {
-                        const loadingSpinner = document.createElement('span');
-                        loadingSpinner.className = 'loading-spinner';
-                        loadingSpinner.style.marginLeft = 'auto';
-                        loadingSpinner.style.width = '20px';
-                        loadingSpinner.style.height = '20px';
-                        loadingSpinner.style.border = '2px solid #ccc';
-                        loadingSpinner.style.borderTopColor = '#333';
-                        loadingSpinner.style.borderRadius = '50%';
-                        loadingSpinner.style.animation = 'spin 1s linear infinite';
-                        resultsHeader.appendChild(loadingSpinner);
-                    }
-                } else {
-                    // If getResultsEditor doesn't exist, show a loading indicator in the displayArea
-                    const displayArea = document.getElementById('displayArea');
-                    if (displayArea) {
-                        const loadingDiv = document.createElement('div');
-                        loadingDiv.className = 'loading-indicator';
-                        loadingDiv.textContent = 'Loading data...';
-                        
-                        // Keep the form but add loading indicator
-                        const mainJsonEditor = document.getElementById('mainJsonEditorContainer');
-                        if (mainJsonEditor) {
-                            mainJsonEditor.style.display = 'none';
-                            displayArea.appendChild(loadingDiv);
-                        } else {
-                            displayArea.innerHTML = '<div class="loading-indicator">Loading data...</div>';
-                        }
-                    }
-                }
-                
-                // Log the request
                 console.log(`Making GET request to: ${endpoint}`);
                 if (typeof appendToLogs === 'function') {
                     appendToLogs(`GET request: ${endpoint}`);
@@ -326,7 +288,7 @@
                     return response.json();
                 })
                 .then(data => {
-                    // Format the data with proper indentation
+                    // Update editors with the response data
                     const formattedData = JSON.stringify(data, null, 2);
                     
                     // Remove loading spinners
@@ -346,33 +308,44 @@
                         mainJsonEditor.style.display = 'block';
                     }
                     
-                    // Update both editors with the response data
+                    // Update both editors with the formatted data
                     if (window.mainEditor) {
                         window.mainEditor.setValue(formattedData);
                     }
                     
-                    // PRIORITY: Update the dedicated GET results editor
                     if (window.getResultsEditor) {
                         window.getResultsEditor.setValue(formattedData);
-                        
-                        // Highlight the results area to show new data has arrived
-                        const resultsArea = document.querySelector('.get-results-area');
-                        if (resultsArea) {
-                            resultsArea.style.animation = 'highlight-pulse 1s';
-                            setTimeout(() => {
-                                resultsArea.style.animation = '';
-                            }, 1000);
+                    }
+                    
+                    // Update tab caption if this was a single entity query
+                    if (isEntityQuery && entityId && window.tabManager) {
+                        const activeTab = window.tabManager.getActiveTab();
+                        if (activeTab && activeTab.tabElement) {
+                            const titleSpan = activeTab.tabElement.querySelector('span');
+                            if (titleSpan) {
+                                const newTitle = `GET ${entityId}`;
+                                titleSpan.textContent = window.tabManager.abbreviateEntityId(newTitle);
+                            }
                         }
-                    } else if (displayArea) {
-                        // Fallback to a simple pre/code block if the JSON editor is not available
-                        displayArea.innerHTML = `<pre id="jsonDisplay"><code class="language-json">${formattedData}</code></pre>`;
-                        
-                        // Apply syntax highlighting if available
-                        if (typeof hljs !== 'undefined') {
-                            document.querySelectorAll('pre code').forEach((block) => {
-                                hljs.highlightElement(block);
-                            });
-                        }
+                    }
+                    
+                    // Re-apply syntax highlighting if needed
+                    if (typeof hljs !== 'undefined') {
+                        document.querySelectorAll('pre code').forEach((block) => {
+                            // First escape any HTML in the content
+                            const content = block.textContent;
+                            try {
+                                const result = hljs.highlight(content, {
+                                    language: 'json',
+                                    ignoreIllegals: true
+                                });
+                                block.innerHTML = result.value;
+                                block.classList.add('hljs-custom');
+                            } catch (error) {
+                                console.warn('Error applying syntax highlighting:', error);
+                                block.textContent = content; // Fallback to plain text
+                            }
+                        });
                     }
                     
                     if (typeof appendToLogs === 'function') {
@@ -413,19 +386,6 @@
                     
                     if (window.getResultsEditor) {
                         window.getResultsEditor.setValue(errorData);
-                        
-                        // Highlight the results area to show error
-                        const resultsArea = document.querySelector('.get-results-area');
-                        if (resultsArea) {
-                            resultsArea.style.animation = 'highlight-error 1s';
-                            resultsArea.style.borderColor = '#f44336';
-                            setTimeout(() => {
-                                resultsArea.style.animation = '';
-                                resultsArea.style.borderColor = '';
-                            }, 3000);
-                        }
-                    } else if (displayArea) {
-                        displayArea.innerHTML = `<p class="error-message">Error: ${error.message}</p>`;
                     }
                     
                     if (typeof appendToLogs === 'function') {

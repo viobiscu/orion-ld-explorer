@@ -1755,6 +1755,20 @@ class JsonEditor {
         // Show success message
         this.showValidationMessage('Entity loaded successfully', true);
         
+        // Update tab title with entity ID if available
+        if (data && data.id && window.tabManager) {
+            // Find the tab that contains this editor
+            const tab = window.tabManager.tabs.find(t => t.editor === this);
+            if (tab) {
+                // Create new title with operation and entity ID
+                const newTitle = `GET ${data.id}`;
+                const titleSpan = tab.tabElement.querySelector('span');
+                if (titleSpan) {
+                    titleSpan.textContent = window.tabManager.abbreviateEntityId(newTitle);
+                }
+            }
+        }
+        
         // Add additional operation buttons after a successful GET
         this.addOperationButtonsAfterGet();
     }

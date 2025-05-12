@@ -25,7 +25,12 @@ class AuthManager {
         // Check for authentication tokens in URL (after Keycloak redirect)
         this.checkAuthResponseInUrl();
         
-        // Redirect loop protection
+        // Initialize redirect loop protection
+        this.lastRedirectTime = 0;
+        this.redirectCount = 0;
+        this.REDIRECT_THRESHOLD = 3; // Max number of redirects
+        this.REDIRECT_TIMEOUT = 10000; // 10 seconds
+        
         this.checkRedirectLoopProtection();
         
         // Set up event listeners
@@ -346,41 +351,56 @@ class AuthManager {
      * Prevent infinite redirect loops
      */
     checkRedirectLoopProtection() {
-        // Check for tokens in URL hash (implicit flow)
-        if (window.location.hash && window.location.hash.includes('access_token=')) {
-            console.log('Found tokens in URL hash, resetting redirect counter');
-            sessionStorage.setItem('auth_redirect_count', '0');
-            return true;
+        const now = Date.now();
+        
+        // Reset redirect count if enough time has passed
+        if (now - this.lastRedirectTime > this.REDIRECT_TIMEOUT) {
+            this.redirectCount = 0;
         }
         
-        // Check for existing access token in localStorage (already authenticated)
-        if (localStorage.getItem('access_token')) {
-            console.log('Found existing access token, no need to redirect');
-            sessionStorage.setItem('auth_redirect_count', '0');
-            return true;
-        }
+        this.redirectCount++;
+        this.lastRedirectTime = now;
         
-        // Reset counter if we have just been redirected back from auth
-        if (document.referrer.includes('keycloak.sensorsreport.net')) {
-            console.log('Detected redirect from Keycloak, resetting redirect counter');
-            sessionStorage.setItem('auth_redirect_count', '0');
-            return true;
-        }
-        
-        // Check and increment redirect counter
-        const redirectCount = parseInt(sessionStorage.getItem('auth_redirect_count') || '0');
-        if (redirectCount > 5) {
-            console.error('Detected authentication redirect loop!');
-            sessionStorage.setItem('auth_redirect_count', '0');
+        // Check for redirect loop
+        if (this.redirectCount > this.REDIRECT_THRESHOLD) {
+            // Clear any stored auth data to break the loop
+            localStorage.removeItem('auth_token');
+            localStorage.removeItem('login_timestamp');
+            localStorage.removeItem('user_info');
             
-            // Show error message to user instead of redirecting again
-            this.showAuthError('Authentication redirect loop detected. Please try clearing your cookies and refreshing the page.');
+            // Set flag to prevent further redirects this session
+            sessionStorage.setItem('authRedirectBlocked', 'true');
+            
+            const error = 'Authentication redirect loop detected. Please try clearing your cookies and refreshing the page.';
+            this.showAuthError(error);
+            throw new Error(error);
+        }
+        
+        // If we've been blocked from redirecting this session, enter offline mode
+        if (sessionStorage.getItem('authRedirectBlocked') === 'true') {
+            console.log('Detected offline mode, skipping authentication check');
+            this.enterOfflineMode();
             return false;
         }
         
-        // Increment counter
-        sessionStorage.setItem('auth_redirect_count', redirectCount + 1);
         return true;
+    }
+
+    /**
+     * Enter offline mode
+     */
+    enterOfflineMode() {
+        // Set up offline user info
+        const offlineUser = {
+            username: 'Offline User',
+            tenant: 'Default'
+        };
+        
+        // Update UI with offline user info
+        this.updateUIWithUserInfo(offlineUser);
+        
+        // Store offline state
+        sessionStorage.setItem('offlineMode', 'true');
     }
 
     /**
@@ -1561,26 +1581,6 @@ class AuthManager {
             header.style.padding = '10px 15px';
             header.style.backgroundColor = '#f8f9fa';
             header.style.borderTop = index === 0 ? '1px solid #dee2e6' : 'none';
-            header.style.borderBottom = '1px solid #dee2e6';
-            header.style.borderLeft = '1px solid #dee2e6';
-            header.style.borderRight = '1px solid #dee2e6';
-            header.style.cursor = 'pointer';
-            header.style.display = 'flex';
-            header.style.justifyContent = 'space-between';
-            header.style.alignItems = 'center';
-            
-            const headerTitle = document.createElement('h3');
-            headerTitle.textContent = section.title;
-            headerTitle.style.margin = '0';
-            headerTitle.style.fontSize = '16px';
-            
-            const toggleIcon = document.createElement('span');
-            toggleIcon.textContent = '▼';
-            toggleIcon.style.transition = 'transform 0.3s';
-            
-            header.appendChild(headerTitle);
-            header.appendChild(toggleIcon);
-            
             // Create content
             const content = document.createElement('div');
             content.style.padding = '15px';
