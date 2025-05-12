@@ -1,0 +1,59 @@
+/* JSON Editor specific styles */
+#mainJsonEditorContainer {
+  width: 100%;
+  height: 500px;
+  margin: 0;
+}
+
+/* Editor tabs styling */
+.editor-tabs-container {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  overflow: hidden;
+}
+
+.editor-tabs-bar {
+  display: flex;
+  background-color: #f0f0f0;
+  border-bottom: 1px solid #ddd;
+  overflow-x: auto;
+  overflow-y: hidden;
+  white-space: nowrap;
+}
+
+.editor-tab {
+  display: inline-flex;
+  align-items: center;
+  padding: 8px 12px;
+  border-right: 1px solid #ddd;
+  cursor: pointer;
+  user-select: none;
+  position: relative;
+  max-width: 200px;
+  transition: background-color 0.2s ease;
+}
+
+.editor-tab:hover {
+  background-color: #e9e9e9;
+}
+
+.editor-tab.active {
+  background-color: #fff;
+  border-bottom: 2px solid #007bff;
+}
+
+.editor-tabs-content {
+  flex-grow: 1;
+  overflow: hidden;
+  position: relative;
+}
+
+.editor-tab-content {
+  height: 100%;
+  display: none;
+}
+
+.editor-tab-content.active {
+  display: block;
+}
