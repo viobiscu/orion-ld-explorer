@@ -388,11 +388,19 @@ class JsonTableEditor extends JsonEditor {
      * @param {Array} entities Array of entities to display
      */
     createEntityTable(entities) {
-        // Get all unique columns from the entities
+        // Get all unique columns from the entities and flatten Property types
         const columns = new Set();
         entities.forEach(item => {
             if (typeof item === 'object' && item !== null) {
-                Object.keys(item).forEach(key => columns.add(key));
+                Object.entries(item).forEach(([key, value]) => {
+                    // Check if it's a Property type attribute
+                    if (value && typeof value === 'object' && value.type === 'Property' && 'value' in value) {
+                        // Use the original key name
+                        columns.add(key);
+                    } else {
+                        columns.add(key);
+                    }
+                });
             }
         });
 
@@ -432,8 +440,13 @@ class JsonTableEditor extends JsonEditor {
                 td.style.borderBottom = '1px solid #ddd';
                 
                 let value = item[column];
-                if (typeof value === 'object' && value !== null) {
-                    value = JSON.stringify(value);
+                // Handle Property type attributes
+                if (value && typeof value === 'object') {
+                    if (value.type === 'Property' && 'value' in value) {
+                        value = value.value;
+                    } else {
+                        value = JSON.stringify(value);
+                    }
                 }
                 td.textContent = value !== undefined ? value : '';
                 
