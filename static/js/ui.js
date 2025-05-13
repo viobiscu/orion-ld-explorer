@@ -218,4 +218,9 @@ window.toggleTreeView = function(element) {
     uiManager.handleTreeViewClick({currentTarget: element});
 };
 
+// Export the initialization function
+export function initializeUI() {
+    return uiManager;
+}
+
 export default uiManager;

@@ -41,34 +41,39 @@
   </div>
 </div>
 
-<script>
+<script type="module">
+  import { JsonTableEditor } from '../js/jsonTableEditor.js';
+  
   // Initialize the GET editor when the tab loads
   (function() {
-    // Create a JsonEditor in GET mode for displaying results
-    const getEditor = new JsonEditor({
-      containerId: 'getResultsContainer',
-      height: 400,
-      resize: true,
-      showToolbar: true,
-      showLineNumbers: true,
-      mode: 'get',  // This is key - setting mode to 'get' creates the dedicated display area
-      // Add the onCustomToolbar option to disable the built-in GET controls
-      onCustomToolbar: function(toolbar) {
-        // This prevents the default GET input and button from being added
-        // We'll use our custom controls above instead
-      },
-      initialValue: JSON.stringify({
-        message: "Ready to fetch entities",
-        instructions: "Enter an Entity ID or Type and click the corresponding button"
-      }, null, 2)
-    });
-    
-    // Store the editor as window.getResultsEditor for the handleGetQuery function to use
-    window.getResultsEditor = getEditor;
-    
-    console.log("GET mode JsonEditor initialized for entities");
+    console.log('Starting to initialize JsonTableEditor...');
+    // Create a JsonTableEditor in GET mode for displaying results
+    try {
+      const getEditor = new JsonTableEditor({
+        containerId: 'getResultsContainer',
+        height: 400,
+        resize: true,
+        showToolbar: true,
+        showLineNumbers: true,
+        mode: 'get',
+        initialValue: JSON.stringify({
+          message: "Ready to fetch entities",
+          instructions: "Enter an Entity ID or Type and click the corresponding button"
+        }, null, 2)
+      });
+      
+      // Store the editor as window.getResultsEditor for the handleGetQuery function to use
+      window.getResultsEditor = getEditor;
+      
+      console.log('JsonTableEditor successfully initialized and stored in window.getResultsEditor');
+    } catch (error) {
+      console.error('Error initializing JsonTableEditor:', error);
+    }
   })();
-  
+</script>
+
+<!-- Regular script for functions that don't need module imports -->
+<script>
   // Fetch an entity by ID
   function fetchEntityById() {
     try {
@@ -119,7 +124,16 @@
       
       // Call the handleGetQuery function
       if (typeof window.handleGetQuery === 'function') {
-        window.handleGetQuery(query);
+        window.handleGetQuery(query).then(data => {
+          if (window.getResultsEditor) {
+            // Set the data in the editor and ensure JSON view for single entities
+            window.getResultsEditor.setValue(JSON.stringify(data, null, 2));
+            // Use JSON view for single entities
+            window.getResultsEditor.viewMode = 'json';
+            window.getResultsEditor.updateDisplay();
+          }
+          appendToLogs(`Retrieved entity: ${entityId}`);
+        });
       } else {
         const errorMsg = {
           error: "handleGetQuery function is not available",
@@ -149,29 +163,18 @@
   // Fetch entities by type
   function fetchEntitiesByType() {
     try {
-      // Get the type from the input field
       const entityType = document.getElementById('entityTypeInput').value.trim();
       
       if (!entityType) {
-        // Show error if no type is provided
-        const errorMsg = {
-          error: "Entity Type is required",
-          message: "Please enter an Entity Type",
-          timestamp: new Date().toISOString()
-        };
-        
-        if (window.getResultsEditor) {
-          window.getResultsEditor.setValue(JSON.stringify(errorMsg, null, 2));
-        }
-        
-        appendToLogs("Error: Entity Type is required");
+        appendToLogs("Please enter an Entity Type");
         return;
       }
       
       // Show loading message
       if (window.getResultsEditor) {
         window.getResultsEditor.setValue(JSON.stringify({ 
-          message: `Loading Entities of type: ${entityType}...`,
+          message: "Loading entities...",
+          type: entityType,
           timestamp: new Date().toISOString()
         }, null, 2));
       }
@@ -187,7 +190,19 @@
       
       // Call the handleGetQuery function
       if (typeof window.handleGetQuery === 'function') {
-        window.handleGetQuery(query);
+        window.handleGetQuery(query).then(data => {
+          if (window.getResultsEditor) {
+            // Set the data in the editor and switch to table view by default
+            window.getResultsEditor.setValue(JSON.stringify(data, null, 2));
+            // Ensure we're using table view for arrays of entities
+            if (Array.isArray(data) && data.length > 0) {
+              window.getResultsEditor.viewMode = 'table';
+              window.getResultsEditor.groupByType = true;
+              window.getResultsEditor.updateDisplay();
+            }
+          }
+          appendToLogs(`Retrieved ${Array.isArray(data) ? data.length : 0} entities of type "${entityType}"`);
+        });
       } else {
         const errorMsg = {
           error: "handleGetQuery function is not available",
@@ -236,7 +251,19 @@
       
       // Call the handleGetQuery function
       if (typeof window.handleGetQuery === 'function') {
-        window.handleGetQuery(query);
+        window.handleGetQuery(query).then(data => {
+          if (window.getResultsEditor) {
+            // Set the data in the editor and switch to table view by default
+            window.getResultsEditor.setValue(JSON.stringify(data, null, 2));
+            // Ensure we're using table view for arrays of entities
+            if (Array.isArray(data) && data.length > 0) {
+              window.getResultsEditor.viewMode = 'table';
+              window.getResultsEditor.groupByType = true;
+              window.getResultsEditor.updateDisplay();
+            }
+          }
+          appendToLogs(`Retrieved ${Array.isArray(data) ? data.length : 0} entities`);
+        });
       } else {
         const errorMsg = {
           error: "handleGetQuery function is not available",

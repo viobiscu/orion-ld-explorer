@@ -24,6 +24,7 @@ class JsonEditor {
      * @param {boolean} [config.allowEntityIdEdit=true] Whether entity ID can be edited
      */
     constructor(config) {
+        console.log('JsonEditor constructor called with config:', config);
         this.containerId = config.containerId;
         this.container = document.getElementById(this.containerId);
         
@@ -68,6 +69,7 @@ class JsonEditor {
         
         // Set up event handlers
         this.setupEventHandlers();
+        console.log('JsonEditor base class initialization complete');
     }
 
     /**

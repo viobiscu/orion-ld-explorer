@@ -1,3 +1,6 @@
+import JsonEditor from './jsonEditor.js';
+import { JsonTableEditor } from './jsonTableEditor.js';  // Changed to named import
+
 /* Tab Manager for JsonEditor instances */
 class TabManager {
     constructor(containerSelector) {
@@ -183,9 +186,10 @@ class TabManager {
         // Add the content to the content area
         this.contentArea.appendChild(contentContainer);
         
-        // Create the editor
+        // Create the editor using the specified editor class or default to JsonEditor
         options.containerId = editorContainer.id;
-        const editor = new JsonEditor(options);
+        const EditorClass = options.editorClass || JsonEditor;
+        const editor = new EditorClass(options);
         
         // Store tab information
         this.tabs.push({

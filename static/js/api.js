@@ -2,6 +2,8 @@
  * API client for interacting with the Orion-LD Context Broker
  */
 import { appendToLogs } from './logging.js';
+import JsonEditor from './jsonEditor.js';
+import { JsonTableEditor } from './jsonTableEditor.js';  // Changed to named import
 
 // Use try-catch to handle module import failures
 let ErrorBoundary, errorBoundary, store, authManager;
@@ -847,30 +849,7 @@ export async function filterEntitiesByType(type) {
         }
         
         // Create a new tab to display the results
-        if (window.tabManager) {
-            const tabId = `entities-${type}-${Date.now()}`;
-            const tabTitle = `${type} Entities`;
-            
-            // Create tab with JSON editor
-            window.tabManager.createEditorTab(tabTitle, {
-                initialValue: JSON.stringify(entities, null, 2),
-                readOnly: true, // Make it read-only since it's just for display
-                mode: 'get',
-                height: 500
-            });
-            
-            console.log(`Successfully displayed ${entities.length} entities of type "${type}" in new tab`);
-        } else {
-            // Fallback to the main editor if tab manager isn't available
-            if (window.mainEditor && typeof window.mainEditor.setValue === 'function') {
-                window.mainEditor.setValue(JSON.stringify(entities, null, 2));
-                console.log(`Successfully displayed ${entities.length} entities of type "${type}" in mainEditor`);
-            } else {
-                // Last resort fallback to the utility function
-                displayJSON(entities);
-                console.warn('mainEditor not available in filterEntitiesByType, using fallback displayJSON');
-            }
-        }
+        displayEntitiesInNewTab(entities, type);
         
         // Also update the entity GET results editor if it exists (for consistency)
         if (window.getResultsEditor && typeof window.getResultsEditor.setValue === 'function') {
@@ -1011,6 +990,22 @@ if (typeof window !== 'undefined') {
                 });
         };
     }
+}
+
+function displayEntitiesInNewTab(data, type) {
+    // Use JsonTableEditor instead of JsonEditor for better tabular display
+    const editorOptions = {
+        initialValue: JSON.stringify(data, null, 2),
+        readOnly: true,
+        mode: 'get',
+        height: 500
+    };
+    
+    const tabTitle = type ? `Entities (${type})` : 'Entities';
+    const tabId = window.tabManager.createEditorTab(tabTitle, {
+        ...editorOptions,
+        editorClass: JsonTableEditor // Specify to use JsonTableEditor
+    });
 }
 
 export default OrionLDClient;
