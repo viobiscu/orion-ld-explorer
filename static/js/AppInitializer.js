@@ -1,6 +1,8 @@
 import apiClient from './api.js';
 import { authManager } from './auth-backend.js';
 import dataProductsModule from './dataProducts.js';
+import { initializeUI } from './ui.js';
+import { clearAuthData, clearAllData } from './auth-utils.js';
 
 /**
  * Main application class to kick off initialization
@@ -34,6 +36,9 @@ class AppInitializer {
         
         // Initialize Data Products module
         this.initializeDataProducts();
+        
+        // Initialize UI components
+        this.initializeUIComponents();
     }
     
     /**
@@ -433,6 +438,28 @@ class AppInitializer {
             statusContainer.style.display = 'none';
         };
         statusContainer.appendChild(closeButton);
+    }
+    
+    /**
+     * Initialize UI components and set up clear buttons
+     */
+    initializeUIComponents() {
+        initializeUI();
+        
+        // Only set up clear buttons if they haven't been set up already
+        const clearAuthButton = document.getElementById('clearAuthButton');
+        if (clearAuthButton && !clearAuthButton.hasListener) {
+            console.debug('Setting up Clear Auth button from AppInitializer');
+            clearAuthButton.addEventListener('click', clearAuthData);
+            clearAuthButton.hasListener = true;
+        }
+        
+        const clearAllButton = document.getElementById('clearAllButton');
+        if (clearAllButton && !clearAllButton.hasListener) {
+            console.debug('Setting up Clear All button from AppInitializer');
+            clearAllButton.addEventListener('click', clearAllData);
+            clearAllButton.hasListener = true;
+        }
     }
 }
 

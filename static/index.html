@@ -25,9 +25,25 @@
         import { setupTokenButton } from './js/token-utils.js';
         import { appendToLogs } from './js/logging.js';
         import { openEntityEditor } from './js/ui-handlers.js';
+        import { clearAuthData, clearAllData } from './js/auth-utils.js';
         
         // Make setupTokenButton available globally
         window.setupTokenButton = setupTokenButton;
+        
+        // Setup function for clear buttons
+        window.setupClearButtons = function() {
+            const clearAuthButton = document.getElementById('clearAuthButton');
+            if (clearAuthButton) {
+                console.debug('Setting up Clear Auth button');
+                clearAuthButton.addEventListener('click', clearAuthData);
+            }
+            
+            const clearAllButton = document.getElementById('clearAllButton');
+            if (clearAllButton) {
+                console.debug('Setting up Clear All button');
+                clearAllButton.addEventListener('click', clearAllData);
+            }
+        };
         
         // Create functions that will be needed by modules before they load
         window.passwordVisibility = {

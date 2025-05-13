@@ -4,6 +4,7 @@
  */
 import { appendToLogs } from './logging.js';
 import { clearLogs } from './logging.js';
+import { processGetData, processDeleteData } from './api.js';
 
 /**
  * Get a template for entity operations based on mode
@@ -208,13 +209,120 @@ export function openEntityEditor(mode) {
     }
 }
 
+/**
+ * Opens a menu item in a new tab
+ * @param {string} path - The path to the content HTML file
+ * @param {string} title - The title for the tab
+ */
+export async function openMenuItemInTab(path, title) {
+    console.log(`Opening ${title} in new tab`);
+    
+    // Initialize TabManager if it doesn't exist yet
+    if (!window.tabManager) {
+        console.log('Initializing TabManager');
+        window.tabManager = new TabManager('#displayArea');
+    }
+    
+    // Store current content for returning from color settings
+    if (title === 'Color Settings') {
+        const currentContent = document.getElementById('displayArea').innerHTML;
+        localStorage.setItem('previousContent', currentContent);
+    }
+    
+    try {
+        const response = await fetch(path);
+        if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+        const content = await response.text();
+        
+        // Create a unique tab ID
+        const tabId = `tab-${Date.now()}`;
+        
+        // Create the tab element
+        const tab = window.tabManager.createTab(title, tabId);
+        
+        // Create content container
+        const contentContainer = document.createElement('div');
+        contentContainer.className = 'editor-tab-content';
+        contentContainer.id = `${tabId}-content`;
+        contentContainer.style.height = '100%';
+        contentContainer.style.display = 'none';
+        contentContainer.style.padding = '20px';
+        contentContainer.style.overflow = 'auto';
+        
+        // Set the HTML content directly
+        contentContainer.innerHTML = content;
+        
+        // Add to tabs array and DOM
+        window.tabManager.contentArea.appendChild(contentContainer);
+        window.tabManager.tabs.push({
+            id: tabId,
+            tabElement: tab,
+            contentElement: contentContainer,
+            mode: 'html'
+        });
+        
+        // Activate the new tab
+        window.tabManager.activateTab(tabId);
+        
+        // Initialize color settings if needed
+        if (title === 'Color Settings' && typeof window.initColorSettings === 'function') {
+            setTimeout(() => window.initColorSettings(), 100);
+        }
+        
+        appendToLogs(`Opened ${title} in a new tab`);
+    } catch (error) {
+        console.error('Error opening menu item:', error);
+        appendToLogs(`Error opening ${title}: ${error.message}`);
+    }
+}
+
+/**
+ * Handle entity GET operation
+ * @param {string} path - The path to get content from
+ */
+export async function handleEntityGet(path) {
+    console.log('Handling GET for path:', path);
+    
+    // Extract the title from the path
+    const title = path.split('/').pop().replace('.html', '');
+    const formattedTitle = title.split(/(?=[A-Z])/).join(' ');
+    
+    // Special handling for Queue, Resources and Color Settings
+    if (path.includes('queue.html') || path.includes('resources.html') || path.includes('colorSettings.html')) {
+        await openMenuItemInTab(path, formattedTitle);
+        return;
+    }
+    
+    // Original behavior for other items
+    try {
+        const response = await fetch(path);
+        if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+        const content = await response.text();
+        
+        // Update the display area
+        const displayArea = document.getElementById('displayArea');
+        if (displayArea) {
+            displayArea.innerHTML = content;
+        }
+        
+        appendToLogs(`Loaded ${formattedTitle} view`);
+    } catch (error) {
+        console.error('Error loading content:', error);
+        appendToLogs(`Error loading ${formattedTitle}: ${error.message}`);
+    }
+}
+
 // Make functions available globally
 window.initializeUI = initializeUI;
 window.openEntityEditor = openEntityEditor;
+window.handleEntityGet = handleEntityGet;
+window.openMenuItemInTab = openMenuItemInTab;
 
 export default {
     initializeUI,
     toggleTreeView,
     initTreeView,
-    openEntityEditor
+    openEntityEditor,
+    handleEntityGet,
+    openMenuItemInTab
 };
