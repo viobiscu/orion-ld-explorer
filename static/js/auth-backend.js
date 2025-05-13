@@ -2,14 +2,14 @@
  * Authentication Manager for Backend Keycloak integration
  * Handles communication with backend auth endpoints
  */
+
+// Import auth utility functions
+import { clearAuthData, clearAllData } from './auth-utils.js';
+
 class AuthManager {
     constructor() {
         // User state
         this.isUserAuthenticated = false;
-        this.userInfo = null;
-        this.tenant = localStorage.getItem('tenantName') || 'Default';
-        
-        // Backend base URL
         // Update this to match your actual backend URL (where the Python app is running)
         this.backendBaseUrl = window.location.origin;  // Use the same origin as the current page instead of hardcoded localhost
         

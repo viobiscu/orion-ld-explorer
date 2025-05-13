@@ -62,3 +62,9 @@ export function clearAllData() {
         }
     }
 }
+
+// Make functions available globally for direct use in HTML
+if (typeof window !== 'undefined') {
+    window.clearAuthData = clearAuthData;
+    window.clearAllData = clearAllData;
+}
