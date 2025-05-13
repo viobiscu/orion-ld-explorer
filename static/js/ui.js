@@ -1,6 +1,8 @@
 /**
  * UI Manager for handling user interface interactions
  */
+import { logRequest } from './logging.js';
+
 class UIManager {
     constructor() {
         // Initialize UI components
@@ -93,19 +95,6 @@ class UIManager {
             logContainer.style.display = "none";
             toggleButton.textContent = "Show Logs";
         }
-    }
-
-    /**
-     * Add a log entry with type and message
-     */
-    logRequest(type, message) {
-        const logContainer = document.getElementById("request-logs");
-        if (!logContainer) return;
-        
-        const logEntry = document.createElement("div");
-        logEntry.className = `log-entry log-${type}`;
-        logEntry.textContent = `[${type.toUpperCase()}] ${message}`;
-        logContainer.appendChild(logEntry);
     }
 
     /**

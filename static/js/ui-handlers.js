@@ -3,6 +3,7 @@
  * Complements the main UI manager with additional handlers
  */
 import { appendToLogs } from './api.js';
+import { clearLogs } from './logging.js';
 
 /**
  * Toggle a tree view element's expanded state
@@ -58,24 +59,11 @@ function setupEventListeners() {
     }
 }
 
-/**
- * Clear the logs container
- */
-export function clearLogs() {
-    const logsContainer = document.getElementById('request-logs');
-    if (logsContainer) {
-        logsContainer.innerHTML = '';
-        appendToLogs('Logs cleared');
-    }
-}
-
 // Make functions available globally
-window.clearLogs = clearLogs;
 window.initializeUI = initializeUI;
 
 export default {
     initializeUI,
-    clearLogs,
     toggleTreeView,
     initTreeView
 };
