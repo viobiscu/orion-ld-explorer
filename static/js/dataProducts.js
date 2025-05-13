@@ -3,7 +3,7 @@
  * This module extends the API functionality to handle Data Products
  */
 
-import { appendToLogs } from './api.js';
+import { appendToLogs } from './logging.js';
 
 // JSON output utility function - using window.mainEditor for consistency
 function displayJSON(data) {

@@ -300,5 +300,6 @@ class TabManager {
     }
 }
 
-// Export globally
+// Add module exports
 window.TabManager = TabManager;
+export default TabManager;

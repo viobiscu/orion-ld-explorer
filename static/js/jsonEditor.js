@@ -2166,53 +2166,6 @@ class JsonEditor {
     }
 }
 
-// Expose the JsonEditor globally
+// Add module exports
 window.JsonEditor = JsonEditor;
-
-// Export for ES modules (only if we're in a module context)
-if (typeof exports !== 'undefined') {
-  exports.JsonEditor = JsonEditor;
-}
-
-// Handle ES module exports in a way that doesn't break in non-module contexts
-try {
-  // This will only execute in a module context
-  if (typeof module !== 'undefined' && module.exports) {
-    module.exports = JsonEditor;
-  } else if (typeof define === 'function' && define.amd) {
-    define([], function() { return JsonEditor; });
-  } 
-} catch (e) {
-  // Silently fail in non-module contexts
-  console.log('Running JsonEditor in non-module mode');
-}
-
-// Initialize the main editor when the page loads
-document.addEventListener('DOMContentLoaded', () => {
-    // Create and configure the main editor instance
-    window.mainEditor = new JsonEditor({
-        containerId: 'mainJsonEditorContainer',
-        initialValue: JSON.stringify({ 
-            message: "Welcome to Orion-LD Explorer",
-            instructions: "Select an operation from the sidebar to get started."
-        }, null, 2),
-        height: 500,
-        resize: true,
-        operation: 'GET', // Set the initial operation to GET
-        showToolbar: true,
-        showLineNumbers: true,
-        onChange: (value) => {
-            console.log('Content changed');
-            try {
-                // Parse and validate the JSON when content changes
-                JSON.parse(value);
-            } catch (e) {
-                // Invalid JSON, but we don't need to show an error here
-                // as the editor's built-in validation will handle it
-            }
-        },
-        onSave: (value) => {
-            console.log('Content saved');
-        }
-    });
-});
+export default JsonEditor;

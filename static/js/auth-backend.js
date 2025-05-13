@@ -1581,6 +1581,23 @@ class AuthManager {
             header.style.padding = '10px 15px';
             header.style.backgroundColor = '#f8f9fa';
             header.style.borderTop = index === 0 ? '1px solid #dee2e6' : 'none';
+            header.style.cursor = 'pointer';
+            header.style.display = 'flex';
+            header.style.alignItems = 'center';
+            header.style.justifyContent = 'space-between';
+            
+            // Create title
+            const title = document.createElement('span');
+            title.textContent = section.title;
+            title.style.fontWeight = 'bold';
+            header.appendChild(title);
+            
+            // Create toggle icon
+            const toggleIcon = document.createElement('span');
+            toggleIcon.innerHTML = '&#9660;'; // Down arrow
+            toggleIcon.style.transition = 'transform 0.3s';
+            header.appendChild(toggleIcon);
+            
             // Create content
             const content = document.createElement('div');
             content.style.padding = '15px';

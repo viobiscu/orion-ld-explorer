@@ -16,11 +16,19 @@
     
     <link href="css/custom-highlight.css" rel="stylesheet"/>
     
-    <!-- Load the non-module version of JsonEditor first for global availability -->
-    <script src="js/jsonEditor.js"></script>
-    <script src="js/TabManager.js"></script>
+    <!-- Load all scripts as modules -->
+    <script src="js/jsonEditor.js" type="module"></script>
+    <script src="js/TabManager.js" type="module"></script>
     
-    <script>
+    <!-- Main module initialization -->
+    <script type="module">
+        import { setupTokenButton } from './js/token-utils.js';
+        import { appendToLogs } from './js/logging.js';
+        import { openEntityEditor } from './js/ui-handlers.js';
+        
+        // Make setupTokenButton available globally
+        window.setupTokenButton = setupTokenButton;
+        
         // Create functions that will be needed by modules before they load
         window.passwordVisibility = {
             togglePasswordVisibility: function(fieldId) {
@@ -38,642 +46,24 @@
             }
         };
 
-        // Define handleEntityGet as a window function to avoid conflicts with modules
-        window.handleEntityGet = function(url) {
-            // Make sure url is a string to prevent /undefined requests
-            if (!url || typeof url !== 'string') {
-                console.error('handleEntityGet called with invalid URL:', url);
-                return;
-            }
+        // Initialize when DOM is loaded and modules are ready
+        document.addEventListener('DOMContentLoaded', async function() {
+            // Initialize TabManager first
+            await initializeTabManager();
             
-            // Log for debugging
-            console.log('handleEntityGet called with URL:', url);
-            
-            // Save current content if switching to color settings
-            if (url === 'inc/colorSettings.html') {
-                const displayArea = document.getElementById('displayArea');
-                if (displayArea) {
-                    localStorage.setItem('previousContent', displayArea.innerHTML);
-                }
-            }
-            
-            // Initialize TabManager if it doesn't exist yet
-            if (!window.tabManager) {
-                console.log('Initializing TabManager for handleEntityGet');
-                window.tabManager = new TabManager('#displayArea');
-            }
-            
-            // Extract tab title from URL
-            let tabTitle = 'GET Operation';
-            if (url.includes('/')) {
-                const urlParts = url.split('/');
-                const fileName = urlParts[urlParts.length - 1];
-                tabTitle = fileName.split('.')[0].charAt(0).toUpperCase() + fileName.split('.')[0].slice(1);
-                
-                // Make more user-friendly tab titles
-                if (tabTitle === 'DataProductsGet') tabTitle = 'GET Data Products';
-                else if (tabTitle === 'RelationshipsVisual') tabTitle = 'Visualize Relationships';
-                else if (tabTitle === 'ColorSettings') tabTitle = 'Color Settings';
-                else if (tabTitle === 'Queue') tabTitle = 'Queues';
-                else if (tabTitle === 'Resources') tabTitle = 'Reference';
-            }
-            
-            fetch(url)
-                .then(response => {
-                    if (!response.ok) {
-                        throw new Error(`Failed to fetch ${url}: ${response.status} ${response.statusText}`);
-                    }
-                    return response.text();
-                })
-                .then(data => {
-                    // Create a new tab for this content
-                    const tabId = `tab-${Date.now()}`;
-                    const tab = window.tabManager.createTab(tabTitle, tabId);
-                    
-                    // Create content container for this tab
-                    const contentContainer = document.createElement('div');
-                    contentContainer.className = 'editor-tab-content';
-                    contentContainer.id = `${tabId}-content`;
-                    contentContainer.style.height = '100%';
-                    contentContainer.style.display = 'none'; // Hide initially
-                    contentContainer.innerHTML = data;
-                    
-                    // Add the content to the content area
-                    window.tabManager.contentArea.appendChild(contentContainer);
-                    
-                    // Store tab information
-                    window.tabManager.tabs.push({
-                        id: tabId,
-                        tabElement: tab,
-                        contentElement: contentContainer,
-                        editor: null,
-                        mode: 'html'
-                    });
-                    
-                    // Activate the new tab
-                    window.tabManager.activateTab(tabId);
-                    
-                    // Then extract and execute scripts
-                    const scriptTags = contentContainer.getElementsByTagName('script');
-                    const scripts = Array.from(scriptTags).map(script => script.innerHTML).join('\n');
-                    
-                    if (scripts) {
-                        // Create a new script element for execution
-                        const scriptElement = document.createElement('script');
-                        scriptElement.textContent = scripts;
-                        document.body.appendChild(scriptElement);
-                    }
-                    
-                    // Log the operation
-                    if (typeof window.Logging !== 'undefined' && typeof window.Logging.appendToLogs === 'function') {
-                        window.Logging.appendToLogs(`Opened ${tabTitle} in a new tab`);
-                    }
-                })
-                .catch(error => {
-                    console.error('Error in handleEntityGet:', error);
-                    if (typeof window.Logging !== 'undefined' && typeof window.Logging.appendToLogs === 'function') {
-                        window.Logging.appendToLogs(`Error loading content: ${error.message}`);
-                    }
-                    
-                    // Display error in a new tab
-                    const tabId = `error-${Date.now()}`;
-                    const tab = window.tabManager.createTab('Error', tabId);
-                    
-                    // Create content container for this tab
-                    const contentContainer = document.createElement('div');
-                    contentContainer.className = 'editor-tab-content';
-                    contentContainer.id = `${tabId}-content`;
-                    contentContainer.style.height = '100%';
-                    contentContainer.style.display = 'none'; // Hide initially
-                    contentContainer.innerHTML = `<p class="error-message">Error loading content: ${error.message}</p>`;
-                    
-                    // Add the content to the content area
-                    window.tabManager.contentArea.appendChild(contentContainer);
-                    
-                    // Store tab information
-                    window.tabManager.tabs.push({
-                        id: tabId,
-                        tabElement: tab,
-                        contentElement: contentContainer,
-                        editor: null,
-                        mode: 'error'
-                    });
-                    
-                    // Activate the new tab
-                    window.tabManager.activateTab(tabId);
-                });
-        };
-
-        // Define filterEntitiesByType function to support GET by Type
-        window.filterEntitiesByType = function(entityType) {
-            console.log(`Filtering entities by type: ${entityType}`);
-            
-            try {
-                // Initialize the OrionLDClient
-                if (typeof OrionLDClient !== 'function') {
-                    console.error('OrionLDClient is not available');
-                    return Promise.reject(new Error('OrionLDClient is not available. Please refresh the page.'));
-                }
-                
-                const client = new OrionLDClient();
-                // Add consistent parameters to match the general query pattern (limit, offset, local)
-                const endpoint = `/api/ngsi-ld/v1/entities?type=${encodeURIComponent(entityType)}&limit=100&offset=0&local=true`;
-                
-                // Log the request
-                console.log(`Making GET request for entities of type: ${entityType}`);
-                if (typeof window.Logging !== 'undefined' && typeof window.Logging.appendToLogs === 'function') {
-                    window.Logging.appendToLogs(`GET request for type: ${entityType}`);
-                }
-                
-                // Return a promise that fetches the entities
-                return fetch(endpoint, {
-                    method: 'GET',
-                    headers: client.headers,
-                    credentials: 'include'
-                })
-                .then(response => {
-                    if (!response.ok) {
-                        return response.text().then(text => {
-                            throw new Error(`Server responded with status ${response.status}: ${text}`);
-                        });
-                    }
-                    return response.json();
-                });
-            } catch (error) {
-                console.error('Error in filterEntitiesByType:', error);
-                return Promise.reject(error);
-            }
-        };
-
-        // Define handleGetQuery function to handle entity queries properly
-        window.handleGetQuery = function(queryParams) {
-            console.log('DEBUG: handleGetQuery called in index.html with:', queryParams);
-            
-            try {
-                // Validate input - ensure it's not browser messages or invalid content
-                if (!queryParams || typeof queryParams !== 'string') {
-                    throw new Error('Invalid query parameters');
-                }
-
-                // Filter out browser messages that might get caught in the input
-                if (queryParams.includes('Chrome is moving') || queryParams.includes('auth-backend.js')) {
-                    console.warn('Filtered out browser message from query params');
-                    return;
-                }
-
-                // Initialize the OrionLDClient
-                if (typeof OrionLDClient !== 'function') {
-                    console.error('OrionLDClient is not available');
-                    throw new Error('OrionLDClient is not available. Please refresh the page.');
-                }
-                
-                const client = new OrionLDClient();
-                
-                // Determine if this is an entity ID request or a query parameters request
-                let endpoint = '/api/ngsi-ld/v1/entities';
-                let isEntityQuery = false;
-                let entityId = null;
-                
-                // Clean the queryParams - remove any browser console messages that might have been included
-                queryParams = queryParams.split('\n')[0].trim();
-                
-                // Check for different query formats
-                if (queryParams.startsWith('/')) {
-                    // Extract entity ID and any remaining parameters
-                    const parts = queryParams.substring(1).split('?');
-                    entityId = parts[0];
-                    isEntityQuery = true;
-                    
-                    if (entityId && entityId.startsWith('urn:')) {
-                        endpoint = `/api/ngsi-ld/v1/entities/${encodeURIComponent(entityId)}`;
-                        if (parts[1]) {
-                            endpoint += `?${parts[1]}`;
-                        }
-                    }
-                } else if (queryParams.startsWith('urn:')) {
-                    // Direct URN format
-                    entityId = queryParams;
-                    isEntityQuery = true;
-                    endpoint = `/api/ngsi-ld/v1/entities/${encodeURIComponent(queryParams)}`;
-                } else if (queryParams.startsWith('?')) {
-                    // Query parameters format
-                    endpoint = `/api/ngsi-ld/v1/entities${queryParams}`;
-                } else if (queryParams.match(/^[a-zA-Z0-9_-]+$/)) {
-                    // Simple ID format
-                    entityId = queryParams;
-                    isEntityQuery = true;
-                    endpoint = `/api/ngsi-ld/v1/entities/${encodeURIComponent(queryParams)}`;
-                } else {
-                    console.warn('Unrecognized query format:', queryParams);
-                    return;
-                }
-                
-                console.log(`Making GET request to: ${endpoint}`);
-                if (typeof window.Logging !== 'undefined' && typeof window.Logging.appendToLogs === 'function') {
-                    window.Logging.appendToLogs(`GET request: ${endpoint}`);
-                }
-                
-                // Make the request
-                fetch(endpoint, {
-                    method: 'GET',
-                    headers: client.headers,
-                    credentials: 'include'
-                })
-                .then(response => {
-                    if (!response.ok) {
-                        return response.text().then(text => {
-                            throw new Error(`Server responded with status ${response.status}: ${text}`);
-                        });
-                    }
-                    return response.json();
-                })
-                .then(data => {
-                    // Update editors with the response data
-                    const formattedData = JSON.stringify(data, null, 2);
-                    
-                    // Remove loading spinners
-                    const loadingSpinner = document.querySelector('.loading-spinner');
-                    if (loadingSpinner) {
-                        loadingSpinner.remove();
-                    }
-                    
-                    const loadingIndicator = document.querySelector('.loading-indicator');
-                    if (loadingIndicator) {
-                        loadingIndicator.remove();
-                    }
-                    
-                    // Show the JSON editor again if it was hidden
-                    const mainJsonEditor = document.getElementById('mainJsonEditorContainer');
-                    if (mainJsonEditor) {
-                        mainJsonEditor.style.display = 'block';
-                    }
-                    
-                    // Update both editors with the formatted data
-                    if (window.mainEditor) {
-                        window.mainEditor.setValue(formattedData);
-                    }
-                    
-                    if (window.getResultsEditor) {
-                        window.getResultsEditor.setValue(formattedData);
-                    }
-                    
-                    // Update tab caption if this was a single entity query
-                    if (isEntityQuery && entityId && window.tabManager) {
-                        const activeTab = window.tabManager.getActiveTab();
-                        if (activeTab && activeTab.tabElement) {
-                            const titleSpan = activeTab.tabElement.querySelector('span');
-                            if (titleSpan) {
-                                const newTitle = `GET ${entityId}`;
-                                titleSpan.textContent = window.tabManager.abbreviateEntityId(newTitle);
-                            }
-                        }
-                    }
-                    
-                    // Re-apply syntax highlighting if needed
-                    if (typeof hljs !== 'undefined') {
-                        document.querySelectorAll('pre code').forEach((block) => {
-                            // First escape any HTML in the content
-                            const content = block.textContent;
-                            try {
-                                const result = hljs.highlight(content, {
-                                    language: 'json',
-                                    ignoreIllegals: true
-                                });
-                                block.innerHTML = result.value;
-                                block.classList.add('hljs-custom');
-                            } catch (error) {
-                                console.warn('Error applying syntax highlighting:', error);
-                                block.textContent = content; // Fallback to plain text
-                            }
-                        });
-                    }
-                    
-                    if (typeof window.Logging !== 'undefined' && typeof window.Logging.appendToLogs === 'function') {
-                        window.Logging.appendToLogs(`Response received for ${endpoint}`);
-                    }
-                })
-                .catch(error => {
-                    console.error('Error in handleGetQuery:', error);
-                    
-                    // Format the error as JSON
-                    const errorData = JSON.stringify({
-                        error: error.message,
-                        endpoint: endpoint,
-                        timestamp: new Date().toISOString()
-                    }, null, 2);
-                    
-                    // Remove loading indicators
-                    const loadingSpinner = document.querySelector('.loading-spinner');
-                    if (loadingSpinner) {
-                        loadingSpinner.remove();
-                    }
-                    
-                    const loadingIndicator = document.querySelector('.loading-indicator');
-                    if (loadingIndicator) {
-                        loadingIndicator.remove();
-                    }
-                    
-                    // Show the JSON editor again if it was hidden
-                    const mainJsonEditor = document.getElementById('mainJsonEditorContainer');
-                    if (mainJsonEditor) {
-                        mainJsonEditor.style.display = 'block';
-                    }
-                    
-                    // Update both editors with the error
-                    if (window.mainEditor) {
-                        window.mainEditor.setValue(errorData);
-                    }
-                    
-                    if (window.getResultsEditor) {
-                        window.getResultsEditor.setValue(errorData);
-                    }
-                    
-                    if (typeof window.Logging !== 'undefined' && typeof window.Logging.appendToLogs === 'function') {
-                        window.Logging.appendToLogs(`Error in request: ${error.message}`);
-                    }
-                });
-            } catch (error) {
-                console.error('Unexpected error in handleGetQuery:', error);
-                
-                if (window.getResultsEditor) {
-                    window.getResultsEditor.setValue(JSON.stringify({
-                        unexpectedError: error.message,
-                        stack: error.stack,
-                        timestamp: new Date().toISOString()
-                    }, null, 2));
-                }
-            }
-        };
-
-        // Function to open the JSON editor directly with specified mode
-        function openEntityEditor(mode) {
-            console.log(`Opening JSON editor directly in ${mode} mode`);
-            
-            // Initialize TabManager if it doesn't exist yet
-            if (!window.tabManager) {
-                console.log('Initializing TabManager');
-                window.tabManager = new TabManager('#displayArea');
-            }
-            
-            // Initial entity templates based on mode
-            const entityTemplate = getEntityTemplate(mode);
-            
-            // Get saved values if available
-            let entityId = '';
-            let initialValue = null;
-            
-            // Try to load saved values for the current mode
-            const savedJson = localStorage.getItem(`entity${mode.charAt(0).toUpperCase() + mode.slice(1)}Json`);
-            const savedEntityId = localStorage.getItem(`entity${mode.charAt(0).toUpperCase() + mode.slice(1)}Id`);
-            
-            if (savedJson) {
-                try {
-                    initialValue = JSON.parse(savedJson);
-                } catch (e) {
-                    console.warn('Could not parse saved JSON, using template instead', e);
-                    initialValue = entityTemplate;
-                }
+            // Setup token dialog after all modules are loaded
+            if (typeof setupTokenButton === 'function') {
+                setupTokenButton();
             } else {
-                initialValue = entityTemplate;
+                console.error('setupTokenButton not available');
             }
             
-            // Use saved entity ID for all suitable modes
-            if (savedEntityId && ['get', 'put', 'patch', 'delete'].includes(mode)) {
-                entityId = savedEntityId;
-            } else if (['put', 'patch'].includes(mode)) {
-                // For PUT/PATCH, extract ID from template if no saved ID
-                entityId = initialValue.id || '';
-            }
-            
-            // Create tab title based on the mode
-            const tabTitle = `${mode.toUpperCase()} Entity`;
-            
-            // Create editor options
-            const editorOptions = {
-                initialValue: JSON.stringify(initialValue, null, 2),
-                height: 500,
-                resize: true,
-                mode: mode,
-                entityId: entityId,
-                operation: mode.toUpperCase(), // Explicitly set the operation type to trigger API buttons
-                allowEntityIdEdit: true,       // Allow editing the entity ID
-                onApiOperation: function(operation, entityId, data) {
-                    console.log(`API operation called: ${operation} on entity ${entityId}`);
-                    
-                    // Handler for different operations
-                    if (operation === 'GET') {
-                        if (typeof window.handleGetQuery === 'function') {
-                            console.log(`Handling GET for ${entityId}`);
-                            window.handleGetQuery(entityId);
-                            return { success: true };
-                        }
-                    } else if (operation === 'POST') {
-                        if (typeof window.processPostQuery === 'function') {
-                            return window.processPostQuery(JSON.stringify(data));
-                        }
-                    } else if (operation === 'PUT') {
-                        if (typeof window.processPutQuery === 'function') {
-                            return window.processPutQuery(entityId, JSON.stringify(data));
-                        }
-                    } else if (operation === 'PATCH') {
-                        if (typeof window.processPatchQuery === 'function') {
-                            return window.processPatchQuery(entityId, JSON.stringify(data));
-                        }
-                    } else if (operation === 'DELETE') {
-                        if (confirm(`Are you sure you want to delete entity "${entityId}"? This action cannot be undone.`)) {
-                            if (typeof window.processDeleteQuery === 'function') {
-                                return window.processDeleteQuery(entityId);
-                            }
-                        }
-                    }
-                    
-                    console.error(`No handler for ${operation} operation`);
-                    return { error: true, message: `Handler for ${operation} not available` };
-                },
-                onSave: function(value) {
-                    try {
-                        const parsedValue = JSON.parse(value);
-                        // Save to localStorage for persistence
-                        localStorage.setItem(`entity${mode.charAt(0).toUpperCase() + mode.slice(1)}Json`, JSON.stringify(parsedValue));
-                        console.log(`Saved ${mode} JSON to localStorage`);
-                    } catch (e) {
-                        console.error('Error saving JSON to localStorage:', e);
-                    }
-                }
-            };
-            
-            // Create a new tab with the editor
-            const tabId = window.tabManager.createEditorTab(tabTitle, editorOptions);
-            console.log(`Created new tab with ID: ${tabId} for ${mode} mode`);
-            
-            // For backward compatibility, set window.entityEditor to the new editor
-            const tab = window.tabManager.getTabById(tabId);
-            if (tab && tab.editor) {
-                window.entityEditor = tab.editor;
-                
-                // For GET mode, also set the getResultsEditor reference
-                if (mode === 'get') {
-                    window.getResultsEditor = tab.editor;
-                }
-            }
-            
-            // Log the operation
-            if (typeof window.Logging !== 'undefined' && typeof window.Logging.appendToLogs === 'function') {
-                window.Logging.appendToLogs(`Opened ${mode.toUpperCase()} Entity editor in a new tab`);
-            }
-        }
-        
-        // Helper function to get operation description
-        function getOperationDescription(mode) {
-            const descriptions = {
-                'post': "This form creates a new entity in the Orion-LD Context Broker.",
-                'put': "This form replaces an existing entity in the Orion-LD Context Broker.",
-                'patch': "This form updates specific fields of an existing entity in the Orion-LD Context Broker."
-            };
-            return descriptions[mode] || '';
-        }
-        
-        // Helper function to get entity template based on mode
-        function getEntityTemplate(mode) {
-            const uuid = generateUuid();
-            const now = new Date().toISOString();
-            
-            const templates = {
-                'get': {
-                    "id": "",
-                    "type": "",
-                    "@context": [
-                        "https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context.jsonld"
-                    ]
-                },
-                'post': {
-                    "id": "urn:ngsi-ld:Entity:" + uuid,
-                    "type": "Device",
-                    "@context": [
-                        "https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context.jsonld"
-                    ],
-                    "name": {
-                        "type": "Property",
-                        "value": "New Entity"
-                    },
-                    "timestamp": {
-                        "type": "Property",
-                        "value": now
-                    }
-                },
-                'put': {
-                    "id": "urn:ngsi-ld:Entity:" + uuid,
-                    "type": "Device",
-                    "@context": [
-                        "https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context.jsonld"
-                    ],
-                    "name": {
-                        "type": "Property",
-                        "value": "Updated Entity"
-                    },
-                    "timestamp": {
-                        "type": "Property",
-                        "value": now
-                    },
-                    "status": {
-                        "type": "Property",
-                        "value": "active"
-                    }
-                },
-                'patch': {
-                    "name": {
-                        "type": "Property",
-                        "value": "Patched Entity Name"
-                    },
-                    "timestamp": {
-                        "type": "Property",
-                        "value": now
-                    }
-                }
-            };
-            
-            return templates[mode] || templates.post;
-        }
-        
-        // Generate a UUID for entity IDs
-        function generateUuid() {
-            return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
-                const r = Math.random() * 16 | 0;
-                const v = c === 'x' ? r : (r & 0x3 | 0x8);
-                return v.toString(16);
-            });
-        }
-        
-        // Handle entity operations (Create, Update, Patch)
-        function handleEntityAction(action) {
-            try {
-                console.log('Entity action:', action);
-                
-                if (!action.data) {
-                    throw new Error('No entity data provided.');
-                }
-                
-                // For PUT and PATCH, verify entity ID is provided
-                if (['put', 'patch'].includes(action.mode) && !action.entityId) {
-                    throw new Error('Entity ID is required for PUT and PATCH operations.');
-                }
-                
-                // Save entity ID to localStorage
-                if (action.entityId) {
-                    localStorage.setItem(`entity${action.mode.charAt(0).toUpperCase() + action.mode.slice(1)}Id`, action.entityId);
-                }
-                
-                // Handle different operations
-                switch (action.mode) {
-                    case 'post':
-                        console.log('Creating entity:', action.data);
-                        // Call the API function for entity creation
-                        if (typeof window.processPostQuery === 'function') {
-                            window.processPostQuery(JSON.stringify(action.data));
-                        } else {
-                            console.error('processPostQuery function not available');
-                            alert('API function for entity creation is not available.');
-                        }
-                        break;
-                        
-                    case 'put':
-                        console.log(`Updating entity ${action.entityId}:`, action.data);
-                        // Call the API function for entity update
-                        if (typeof window.processPutQuery === 'function') {
-                            window.processPutQuery(action.entityId, JSON.stringify(action.data));
-                        } else {
-                            console.error('processPutQuery function not available');
-                            alert('API function for entity update is not available.');
-                        }
-                        break;
-                        
-                    case 'patch':
-                        console.log(`Patching entity ${action.entityId}:`, action.data);
-                        // Call the API function for entity patch
-                        if (typeof window.processPatchQuery === 'function') {
-                            window.processPatchQuery(action.entityId, JSON.stringify(action.data));
-                        } else {
-                            console.error('processPatchQuery function not available');
-                            alert('API function for entity patch is not available.');
-                        }
-                        break;
-                        
-                    default:
-                        throw new Error(`Unsupported operation mode: ${action.mode}`);
-                }
-                
-                if (typeof window.Logging !== 'undefined' && typeof window.Logging.appendToLogs === 'function') {
-                    window.Logging.appendToLogs(`${action.mode.toUpperCase()} operation executed for ${action.entityId || 'new entity'}`);
-                }
-                
-            } catch (error) {
-                console.error('Error performing entity operation:', error);
-                alert('Error: ' + error.message);
-            }
-        }
+            // Setup Clear Auth and Clear All buttons
+            setupClearButtons();
+        });
     </script>
     
-    <!-- Load our scripts with defer attribute and module type -->
+    <!-- Load other module scripts with defer attribute -->
     <script src="js/logging.js" type="module" defer></script>
     <script src="js/auth-backend.js" type="module" defer></script>
     <script src="js/auth-utils.js" type="module" defer></script>
@@ -681,8 +71,6 @@
     <script src="js/api.js" type="module" defer></script>
     <script src="js/AppInitializer.js" type="module" defer></script>
     <script src="js/colorSettings.js" type="module" defer></script>
-    
-    <!-- styles have been moved to editor.css -->
 </head>
 <body>
     <!-- Header Section -->
@@ -848,20 +236,8 @@
     </div> -->
     
     <script>
-        // Initialize the main JSON editor when the page loads
-        document.addEventListener('DOMContentLoaded', function() {
-            // Initialize TabManager first
-            initializeTabManager();
-            
-            // Setup token dialog
-            setupTokenButton();
-            
-            // Setup Clear Auth and Clear All buttons
-            setupClearButtons();
-        });
-
         // Function to initialize TabManager and load GET Entities tab
-        function initializeTabManager() {
+        async function initializeTabManager() {
             console.log('Initializing TabManager');
             
             // Create TabManager
@@ -932,8 +308,7 @@
             // Set up Clear Auth button
             const clearAuthButton = document.getElementById('clearAuthButton');
             if (clearAuthButton) {
-                clearAuthButton.addEventListener('click', async function() {
-                    const { clearAuthData } = await import('./js/auth-utils.js');
+                clearAuthButton.addEventListener('click', function() {
                     clearAuthData();
                 });
             }
@@ -941,67 +316,75 @@
             // Set up Clear All button
             const clearAllButton = document.getElementById('clearAllButton');
             if (clearAllButton) {
-                clearAllButton.addEventListener('click', async function() {
-                    const { clearAllData } = await import('./js/auth-utils.js');
+                clearAllButton.addEventListener('click', function() {
                     clearAllData();
                 });
             }
         }
         
-        function setupTokenButton() {
-            const showTokenButton = document.getElementById('showTokenButton');
-            if (showTokenButton) {
-                showTokenButton.addEventListener('click', function() {
-                    showTokenDialog();
-                });
+        // Function to clear authentication data
+        function clearAuthData() {
+            // Remove authentication-related items from localStorage
+            localStorage.removeItem('auth_token');
+            localStorage.removeItem('user_info');
+            localStorage.removeItem('login_timestamp');
+            
+            // Update the UI to reflect that the user is logged out
+            const loginUserSpan = document.getElementById('loginUser');
+            if (loginUserSpan) {
+                loginUserSpan.textContent = 'User: Not logged in';
+            }
+            
+            // Log the action
+            console.log('Authentication data cleared');
+            if (typeof appendToLogs === 'function') {
+                appendToLogs('Authentication data cleared');
+            }
+            
+            // Show a message in the editor
+            if (window.mainEditor) {
+                window.mainEditor.setValue(JSON.stringify({
+                    message: "Authentication data cleared",
+                    status: "success",
+                    timestamp: new Date().toISOString()
+                }, null, 2));
+            }
+            
+            // Optionally reload the page to ensure all auth-dependent components are reset
+            if (confirm('Authentication data cleared. Would you like to reload the page to complete the logout process?')) {
+                window.location.reload();
             }
         }
         
-        function showTokenDialog() {
-            // Check if AuthBackend is already available
-            if (typeof window.AuthBackend !== 'undefined' && typeof window.AuthBackend.showToken === 'function') {
-                console.log('Using showToken from auth-backend.js');
-                window.AuthBackend.showToken();
-                return;
-            }
+        // Function to clear all localStorage data
+        function clearAllData() {
+            // Create a backup of non-auth data if user wants to keep it
+            const confirm_clear = confirm('This will clear ALL local storage data, including saved queries, settings, and authentication. Continue?');
             
-            console.log('AuthBackend.showToken is not available - waiting for module to load');
-            
-            // Implement a more robust retry mechanism with multiple attempts
-            let attempts = 0;
-            const maxAttempts = 5;
-            const retryInterval = 500; // 500ms between attempts
-            
-            const tryShowToken = function() {
-                attempts++;
-                if (typeof window.AuthBackend !== 'undefined' && typeof window.AuthBackend.showToken === 'function') {
-                    console.log(`AuthBackend.showToken available after ${attempts} attempts`);
-                    window.AuthBackend.showToken();
-                } else if (attempts < maxAttempts) {
-                    console.log(`Retry attempt ${attempts}/${maxAttempts} for AuthBackend.showToken`);
-                    setTimeout(tryShowToken, retryInterval);
-                } else {
-                    console.error(`AuthBackend.showToken still not available after ${maxAttempts} attempts`);
-                    
-                    // Create fallback token display
-                    const token = localStorage.getItem('access_token') || localStorage.getItem('auth_token');
-                    if (token) {
-                        alert('Token is available but the display functionality is not ready. Using simple display instead.');
-                        if (window.mainEditor) {
-                            window.mainEditor.setValue(JSON.stringify({
-                                message: "Authentication Token (Simple View)",
-                                token_preview: token.substring(0, 15) + '...' + token.substring(token.length - 10),
-                                note: "This is a simplified view. The full token viewer is not available."
-                            }, null, 2));
-                        }
-                    } else {
-                        alert('Token display functionality is not available and no token was found in localStorage.');
-                    }
+            if (confirm_clear) {
+                // Clear all localStorage data
+                localStorage.clear();
+                
+                // Log the action
+                console.log('All localStorage data cleared');
+                if (typeof appendToLogs === 'function') {
+                    appendToLogs('All localStorage data cleared');
                 }
-            };
-            
-            // Start the retry process
-            tryShowToken();
+                
+                // Show a message in the editor
+                if (window.mainEditor) {
+                    window.mainEditor.setValue(JSON.stringify({
+                        message: "All localStorage data cleared",
+                        status: "success",
+                        timestamp: new Date().toISOString()
+                    }, null, 2));
+                }
+                
+                // Reload the page to reset all components
+                if (confirm('All data cleared. Reload the page now?')) {
+                    window.location.reload();
+                }
+            }
         }
         
         // OrionLDClient class for making API requests

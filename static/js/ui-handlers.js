@@ -2,8 +2,36 @@
  * UI handler utilities for the application
  * Complements the main UI manager with additional handlers
  */
-import { appendToLogs } from './api.js';
+import { appendToLogs } from './logging.js';
 import { clearLogs } from './logging.js';
+
+/**
+ * Get a template for entity operations based on mode
+ * @param {string} mode - The operation mode (get, post, put, patch)
+ * @returns {Object} A template object for the specified mode
+ */
+function getEntityTemplate(mode) {
+    switch (mode.toLowerCase()) {
+        case 'post':
+        case 'put':
+            return {
+                "id": "urn:ngsi-ld:Entity:001",
+                "type": "Entity",
+                "@context": ["https://ngsi-ld.sensorsreport.net/synchro-context.jsonld"]
+            };
+        case 'patch':
+            return {
+                "@context": ["https://ngsi-ld.sensorsreport.net/synchro-context.jsonld"],
+                "value": "new value"
+            };
+        case 'get':
+        default:
+            return {
+                message: "Enter an Entity ID and click GET",
+                instructions: "Example ID: urn:ngsi-ld:Entity:001"
+            };
+    }
+}
 
 /**
  * Toggle a tree view element's expanded state
@@ -59,11 +87,134 @@ function setupEventListeners() {
     }
 }
 
+/**
+ * Opens the entity editor in the specified mode
+ * @param {string} mode - The mode to open the editor in (get, post, put, patch)
+ */
+export function openEntityEditor(mode) {
+    console.log(`Opening JSON editor directly in ${mode} mode`);
+    
+    // Initialize TabManager if it doesn't exist yet
+    if (!window.tabManager) {
+        console.log('Initializing TabManager');
+        window.tabManager = new TabManager('#displayArea');
+    }
+    
+    // Initial entity templates based on mode
+    const entityTemplate = getEntityTemplate(mode);
+    
+    // Get saved values if available
+    let entityId = '';
+    let initialValue = null;
+    
+    // Try to load saved values for the current mode
+    const savedJson = localStorage.getItem(`entity${mode.charAt(0).toUpperCase() + mode.slice(1)}Json`);
+    const savedEntityId = localStorage.getItem(`entity${mode.charAt(0).toUpperCase() + mode.slice(1)}Id`);
+    
+    if (savedJson) {
+        try {
+            initialValue = JSON.parse(savedJson);
+        } catch (e) {
+            console.warn('Could not parse saved JSON, using template instead', e);
+            initialValue = entityTemplate;
+        }
+    } else {
+        initialValue = entityTemplate;
+    }
+    
+    // Use saved entity ID for all suitable modes
+    if (savedEntityId && ['get', 'put', 'patch', 'delete'].includes(mode)) {
+        entityId = savedEntityId;
+    } else if (['put', 'patch'].includes(mode)) {
+        // For PUT/PATCH, extract ID from template if no saved ID
+        entityId = initialValue.id || '';
+    }
+    
+    // Create tab title based on the mode
+    const tabTitle = `${mode.toUpperCase()} Entity`;
+    
+    // Create editor options
+    const editorOptions = {
+        initialValue: JSON.stringify(initialValue, null, 2),
+        height: 500,
+        resize: true,
+        mode: mode,
+        entityId: entityId,
+        operation: mode.toUpperCase(), // Explicitly set the operation type to trigger API buttons
+        allowEntityIdEdit: true,       // Allow editing the entity ID
+        onApiOperation: function(operation, entityId, data) {
+            console.log(`API operation called: ${operation} on entity ${entityId}`);
+            
+            // Handler for different operations
+            if (operation === 'GET') {
+                if (typeof window.handleGetQuery === 'function') {
+                    console.log(`Handling GET for ${entityId}`);
+                    window.handleGetQuery(entityId);
+                    return { success: true };
+                }
+            } else if (operation === 'POST') {
+                if (typeof window.processPostQuery === 'function') {
+                    return window.processPostQuery(JSON.stringify(data));
+                }
+            } else if (operation === 'PUT') {
+                if (typeof window.processPutQuery === 'function') {
+                    return window.processPutQuery(entityId, JSON.stringify(data));
+                }
+            } else if (operation === 'PATCH') {
+                if (typeof window.processPatchQuery === 'function') {
+                    return window.processPatchQuery(entityId, JSON.stringify(data));
+                }
+            } else if (operation === 'DELETE') {
+                if (confirm(`Are you sure you want to delete entity "${entityId}"? This action cannot be undone.`)) {
+                    if (typeof window.processDeleteQuery === 'function') {
+                        return window.processDeleteQuery(entityId);
+                    }
+                }
+            }
+            
+            console.error(`No handler for ${operation} operation`);
+            return { error: true, message: `Handler for ${operation} not available` };
+        },
+        onSave: function(value) {
+            try {
+                const parsedValue = JSON.parse(value);
+                // Save to localStorage for persistence
+                localStorage.setItem(`entity${mode.charAt(0).toUpperCase() + mode.slice(1)}Json`, JSON.stringify(parsedValue));
+                console.log(`Saved ${mode} JSON to localStorage`);
+            } catch (e) {
+                console.error('Error saving JSON to localStorage:', e);
+            }
+        }
+    };
+    
+    // Create a new tab with the editor
+    const tabId = window.tabManager.createEditorTab(tabTitle, editorOptions);
+    console.log(`Created new tab with ID: ${tabId} for ${mode} mode`);
+    
+    // For backward compatibility, set window.entityEditor to the new editor
+    const tab = window.tabManager.getTabById(tabId);
+    if (tab && tab.editor) {
+        window.entityEditor = tab.editor;
+        
+        // For GET mode, also set the getResultsEditor reference
+        if (mode === 'get') {
+            window.getResultsEditor = tab.editor;
+        }
+    }
+    
+    // Log the operation
+    if (typeof appendToLogs === 'function') {
+        appendToLogs(`Opened ${mode.toUpperCase()} Entity editor in a new tab`);
+    }
+}
+
 // Make functions available globally
 window.initializeUI = initializeUI;
+window.openEntityEditor = openEntityEditor;
 
 export default {
     initializeUI,
     toggleTreeView,
-    initTreeView
+    initTreeView,
+    openEntityEditor
 };

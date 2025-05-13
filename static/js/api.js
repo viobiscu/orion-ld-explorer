@@ -896,6 +896,76 @@ export async function filterEntitiesByType(type) {
     }
 }
 
+// Handle GET queries for entities
+export async function handleGetQuery(query) {
+    console.log(`Handling GET query: ${query}`);
+    const client = new OrionLDClient();
+
+    try {
+        // Show loading state in the editor if available
+        if (window.getResultsEditor) {
+            window.getResultsEditor.setValue(JSON.stringify({
+                status: "loading",
+                query: query,
+                message: "Fetching data..."
+            }, null, 2));
+        }
+
+        // Handle different query formats
+        let endpoint = '';
+        if (query.startsWith('?')) {
+            // Query parameters format
+            endpoint = `${client.baseURL}/entities${query}`;
+        } else if (query.startsWith('/')) {
+            // Path format with leading slash
+            endpoint = `${client.baseURL}${query}`;
+        } else if (query.startsWith('urn:')) {
+            // URN format without leading slash
+            endpoint = `${client.baseURL}/entities/${encodeURIComponent(query)}`;
+        } else {
+            // Default to entities endpoint with the query as a parameter
+            endpoint = `${client.baseURL}/entities/${encodeURIComponent(query)}`;
+        }
+
+        const response = await fetch(endpoint, {
+            method: 'GET',
+            headers: client.headers,
+            credentials: 'include'
+        });
+
+        const data = await response.json();
+
+        // Update the editor with the response
+        if (window.getResultsEditor) {
+            window.getResultsEditor.setValue(JSON.stringify(data, null, 2));
+        }
+
+        // Also update main editor if it exists and is different from results editor
+        if (window.mainEditor && window.mainEditor !== window.getResultsEditor) {
+            window.mainEditor.setValue(JSON.stringify(data, null, 2));
+        }
+
+        appendToLogs(`GET query successful: ${query}`);
+        return data;
+
+    } catch (error) {
+        console.error('Error executing GET query:', error);
+        const errorMessage = {
+            error: "Failed to execute GET query",
+            details: error.message || String(error),
+            query: query,
+            timestamp: new Date().toISOString()
+        };
+
+        if (window.getResultsEditor) {
+            window.getResultsEditor.setValue(JSON.stringify(errorMessage, null, 2));
+        }
+
+        appendToLogs(`Error in GET query: ${error.message}`);
+        throw error;
+    }
+}
+
 // Expose utility functions for global use
 if (typeof window !== 'undefined') {
     window.processGetData = processGetData;
@@ -905,9 +975,9 @@ if (typeof window !== 'undefined') {
     window.searchEntities = searchEntities;
     window.loadEntityTypes = loadEntityTypes;
     window.filterEntitiesByType = filterEntitiesByType;
+    window.handleGetQuery = handleGetQuery;
     
     // Only set handleEntityGet if it's not already defined
-    // This prevents overriding the version in index.html
     if (typeof window.handleEntityGet !== 'function') {
         window.handleEntityGet = function(templatePath) {
             if (!templatePath || typeof templatePath !== 'string') {
@@ -940,16 +1010,6 @@ if (typeof window !== 'undefined') {
                     }
                 });
         };
-    } else {
-        console.log('handleEntityGet already defined, skipping definition in api.js');
-    }
-
-    // Check if handleGetQuery is already defined globally before defining it
-    if (typeof window.handleGetQuery !== 'function') {
-        console.log('handleGetQuery defined in api.js will not be used since it exists in index.html');
-        // Do not define a placeholder implementation here to avoid conflicts
-    } else {
-        console.log('handleGetQuery already defined in index.html, skipping definition in api.js');
     }
 }
 
