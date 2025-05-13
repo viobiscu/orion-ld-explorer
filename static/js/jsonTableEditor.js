@@ -25,6 +25,26 @@ class JsonTableEditor extends JsonEditor {
         
         this.createTableContainer();
         this.groupByType = false;
+
+        // Initialize the correct view state after all elements are created
+        requestAnimationFrame(() => {
+            if (this.viewMode === 'table') {
+                this.editorWrapper.style.cssText = 'display: none !important;';
+                this.tableContainer.style.cssText = 'display: block !important; width: 100%; height: 100%; overflow: auto; padding: 8px;';
+                try {
+                    const data = this.getValue(true);
+                    if (Array.isArray(data)) {
+                        this.displayTable(data);
+                    }
+                } catch (e) {
+                    console.error('[Debug] Error displaying initial table view:', e);
+                    this.viewMode = 'json';
+                    this.editorWrapper.style.cssText = 'display: block !important;';
+                    this.tableContainer.style.cssText = 'display: none !important;';
+                }
+            }
+        });
+
         console.log('[Debug] Constructor complete - Full element state:', this.debugDOMState());
     }
 
@@ -54,11 +74,6 @@ class JsonTableEditor extends JsonEditor {
                 exists: !!this.tableContainer,
                 display: this.tableContainer?.style.display,
                 visible: this.isElementVisible(this.tableContainer)
-            },
-            modeIndicator: {
-                exists: !!this.modeIndicator,
-                text: this.modeIndicator?.textContent,
-                visible: this.isElementVisible(this.modeIndicator)
             },
             viewMode: this.viewMode,
             dimensions: this.getElementDimensions()
@@ -104,29 +119,19 @@ class JsonTableEditor extends JsonEditor {
     createTableContainer() {
         this.tableContainer = document.createElement('div');
         this.tableContainer.className = 'json-table-container';
-        this.tableContainer.style.display = 'none';
-        this.tableContainer.style.width = '100%';
-        this.tableContainer.style.height = '100%';
-        this.tableContainer.style.overflow = 'auto';
-        this.tableContainer.style.padding = '8px';
+        // Initialize with the correct display state based on viewMode
+        this.tableContainer.style.cssText = this.viewMode === 'table' ? 
+            'display: block !important; width: 100%; height: 100%; overflow: auto; padding: 8px;' : 
+            'display: none !important;';
         this.editingArea.appendChild(this.tableContainer);
 
-        // Add view toggle button to toolbar with mode indicator
+        // Add view toggle button to toolbar
         if (this.showToolbar) {
             const viewToggleContainer = document.createElement('div');
             viewToggleContainer.style.display = 'flex';
             viewToggleContainer.style.alignItems = 'center';
             viewToggleContainer.style.marginLeft = '8px';
             
-            // Mode indicator label
-            this.modeIndicator = document.createElement('span');
-            this.modeIndicator.style.marginRight = '8px';
-            this.modeIndicator.style.padding = '2px 6px';
-            this.modeIndicator.style.borderRadius = '3px';
-            this.modeIndicator.style.fontSize = '12px';
-            this.updateModeIndicator(); // Set initial state
-            viewToggleContainer.appendChild(this.modeIndicator);
-
             // View toggle button
             const viewToggleButton = document.createElement('button');
             viewToggleButton.title = 'Toggle Table/JSON View (Ctrl+Shift+T)';
@@ -145,7 +150,6 @@ class JsonTableEditor extends JsonEditor {
 
             viewToggleButton.addEventListener('click', () => {
                 this.toggleView();
-                this.updateModeIndicator();
             });
             groupByTypeButton.addEventListener('click', () => {
                 this.toggleGroupByType();
@@ -157,50 +161,13 @@ class JsonTableEditor extends JsonEditor {
                 if (e.ctrlKey && e.shiftKey && e.key.toLowerCase() === 't') {
                     e.preventDefault();
                     this.toggleView();
-                    this.updateModeIndicator();
                 }
             });
         }
     }
 
     /**
-     * Update the mode indicator label with enhanced error checking
-     */
-    updateModeIndicator() {
-        console.log('[Debug] Updating mode indicator:', {
-            exists: !!this.modeIndicator,
-            currentMode: this.viewMode
-        });
-        
-        if (!this.modeIndicator) {
-            console.error('[Debug] Mode indicator element missing');
-            return;
-        }
-        
-        try {
-            if (this.viewMode === 'table') {
-                this.modeIndicator.textContent = 'TABLE VIEW';
-                this.modeIndicator.style.backgroundColor = '#e6f3ff';
-                this.modeIndicator.style.color = '#0066cc';
-                this.modeIndicator.style.border = '1px solid #99ccff';
-            } else {
-                this.modeIndicator.textContent = 'JSON VIEW';
-                this.modeIndicator.style.backgroundColor = '#f0f0f0';
-                this.modeIndicator.style.color = '#666666';
-                this.modeIndicator.style.border = '1px solid #cccccc';
-            }
-            console.log('[Debug] Mode indicator updated successfully:', {
-                text: this.modeIndicator.textContent,
-                backgroundColor: this.modeIndicator.style.backgroundColor,
-                visible: this.isElementVisible(this.modeIndicator)
-            });
-        } catch (error) {
-            console.error('[Debug] Error updating mode indicator:', error);
-        }
-    }
-
-    /**
-     * Toggle between table and JSON view with enhanced debugging
+     * Toggle between table and JSON view
      */
     toggleView() {
         console.log('[Debug] toggleView starting - Current state:', this.debugDOMState());
@@ -316,7 +283,7 @@ class JsonTableEditor extends JsonEditor {
     }
 
     /**
-     * Override updateDisplay to handle both JSON and table views with improved state management
+     * Override updateDisplay to handle both JSON and table views
      */
     updateDisplay() {
         console.log('[Debug] updateDisplay called - Elements state:', {
