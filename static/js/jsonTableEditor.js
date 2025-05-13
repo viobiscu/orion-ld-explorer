@@ -10,6 +10,8 @@ class JsonTableEditor extends JsonEditor {
         console.log('[Debug] JsonTableEditor constructor starting with config:', config);
         super(config);
         this.viewMode = 'table'; // Default to table view for arrays
+        this.selectedRows = new Set();
+        this.selectedColumns = new Set();
         console.log('[Debug] After super() call - DOM structure:', this.debugDOMState());
         
         // Make sure editingArea is initialized from parent before creating table container
@@ -146,6 +148,15 @@ class JsonTableEditor extends JsonEditor {
             groupByTypeButton.style.marginLeft = '4px';
             viewToggleContainer.appendChild(groupByTypeButton);
 
+            // Add delete button
+            const deleteButton = document.createElement('button');
+            deleteButton.className = 'delete-button';
+            deleteButton.title = 'Delete Selected Rows/Columns';
+            deleteButton.innerHTML = '<i class="fas fa-trash"></i>';
+            deleteButton.style.display = 'none';
+            deleteButton.style.marginLeft = '4px';
+            viewToggleContainer.appendChild(deleteButton);
+
             this.toolbar.insertBefore(viewToggleContainer, this.toolbar.firstChild);
 
             viewToggleButton.addEventListener('click', () => {
@@ -154,6 +165,9 @@ class JsonTableEditor extends JsonEditor {
             groupByTypeButton.addEventListener('click', () => {
                 this.toggleGroupByType();
                 this.updateDisplay();
+            });
+            deleteButton.addEventListener('click', () => {
+                this.handleDelete();
             });
 
             // Add keyboard shortcut for view toggle
@@ -384,6 +398,28 @@ class JsonTableEditor extends JsonEditor {
     }
 
     /**
+     * Format column name for display
+     * @param {string} column The raw column name
+     * @returns {string} The formatted column name
+     */
+    formatColumnName(column) {
+        // Remove common prefixes like "ngsi-" or "urn:"
+        let formatted = column.replace(/^(ngsi-|urn:)/, '');
+        
+        // Split by common delimiters
+        formatted = formatted.split(/[-_.]/)
+            .map(word => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
+            .join(' ');
+
+        // Special case for ID/URN
+        if (column.toLowerCase() === 'id' || column.toLowerCase() === 'urn') {
+            return column.toUpperCase();
+        }
+
+        return formatted;
+    }
+
+    /**
      * Create a table for a set of entities
      * @param {Array} entities Array of entities to display
      */
@@ -393,9 +429,7 @@ class JsonTableEditor extends JsonEditor {
         entities.forEach(item => {
             if (typeof item === 'object' && item !== null) {
                 Object.entries(item).forEach(([key, value]) => {
-                    // Check if it's a Property type attribute
                     if (value && typeof value === 'object' && value.type === 'Property' && 'value' in value) {
-                        // Use the original key name
                         columns.add(key);
                     } else {
                         columns.add(key);
@@ -412,35 +446,152 @@ class JsonTableEditor extends JsonEditor {
         table.style.fontFamily = 'monospace';
         table.style.fontSize = '13px';
         table.style.marginBottom = '20px';
+        table.style.tableLayout = 'fixed';
 
         // Create header
         const thead = document.createElement('thead');
         const headerRow = document.createElement('tr');
-        Array.from(columns).forEach(column => {
+
+        // Add checkbox column header
+        const checkboxTh = document.createElement('th');
+        checkboxTh.style.width = '40px';
+        const selectAllCheckbox = document.createElement('input');
+        selectAllCheckbox.type = 'checkbox';
+        
+        // Add click handler for reverse selection
+        checkboxTh.addEventListener('click', (e) => {
+            // Only handle clicks on the th element itself, not the checkbox
+            if (e.target === checkboxTh) {
+                const checkboxes = table.querySelectorAll('tbody input[type="checkbox"]');
+                checkboxes.forEach((checkbox, index) => {
+                    // Toggle the checkbox state
+                    checkbox.checked = !checkbox.checked;
+                    if (checkbox.checked) {
+                        this.selectedRows.add(index);
+                    } else {
+                        this.selectedRows.delete(index);
+                    }
+                });
+                // Update the select all checkbox state
+                selectAllCheckbox.checked = false;
+                this.updateSelectionUI();
+                this.updateDeleteButtonVisibility();
+            }
+        });
+
+        selectAllCheckbox.addEventListener('change', () => {
+            const checkboxes = table.querySelectorAll('tbody input[type="checkbox"]');
+            checkboxes.forEach((checkbox, index) => {
+                checkbox.checked = selectAllCheckbox.checked;
+                if (selectAllCheckbox.checked) {
+                    this.selectedRows.add(index);
+                } else {
+                    this.selectedRows.delete(index);
+                }
+            });
+            this.updateSelectionUI();
+            this.updateDeleteButtonVisibility();
+        });
+        checkboxTh.appendChild(selectAllCheckbox);
+        headerRow.appendChild(checkboxTh);
+
+        // Add other column headers
+        Array.from(columns).forEach((column) => {
             const th = document.createElement('th');
-            th.textContent = column;
+            th.textContent = this.formatColumnName(column);
             th.style.padding = '8px';
             th.style.borderBottom = '2px solid #ddd';
             th.style.textAlign = 'left';
             th.style.fontWeight = 'bold';
+            th.style.position = 'relative';
+            th.style.userSelect = 'none';
+            
+            // Add tooltip with original name
+            if (th.textContent !== column) {
+                th.title = column;
+            }
+            
+            // Add resize handle
+            const resizeHandle = document.createElement('div');
+            resizeHandle.className = 'column-resize-handle';
+            resizeHandle.style.position = 'absolute';
+            resizeHandle.style.right = '0';
+            resizeHandle.style.top = '0';
+            resizeHandle.style.bottom = '0';
+            resizeHandle.style.width = '4px';
+            resizeHandle.style.cursor = 'col-resize';
+            resizeHandle.style.backgroundColor = 'transparent';
+            resizeHandle.style.transition = 'background-color 0.2s';
+
+            resizeHandle.addEventListener('mouseenter', () => {
+                resizeHandle.style.backgroundColor = '#ddd';
+            });
+            resizeHandle.addEventListener('mouseleave', () => {
+                resizeHandle.style.backgroundColor = 'transparent';
+            });
+
+            resizeHandle.addEventListener('mousedown', (e) => {
+                e.preventDefault();
+                const startX = e.pageX;
+                const startWidth = th.offsetWidth;
+                
+                const onMouseMove = (mouseMoveEvent) => {
+                    const diff = mouseMoveEvent.pageX - startX;
+                    th.style.width = `${startWidth + diff}px`;
+                };
+                
+                const onMouseUp = () => {
+                    document.removeEventListener('mousemove', onMouseMove);
+                    document.removeEventListener('mouseup', onMouseUp);
+                };
+                
+                document.addEventListener('mousemove', onMouseMove);
+                document.addEventListener('mouseup', onMouseUp);
+            });
+
+            th.appendChild(resizeHandle);
             headerRow.appendChild(th);
         });
         thead.appendChild(headerRow);
         table.appendChild(thead);
 
-        // Create body
+        // Create body with overflow handling
         const tbody = document.createElement('tbody');
         entities.forEach((item, index) => {
             const row = document.createElement('tr');
             row.style.backgroundColor = index % 2 === 0 ? '#f8f9fa' : 'white';
             
+            // Add checkbox cell as the first column
+            const checkboxCell = document.createElement('td');
+            checkboxCell.style.padding = '8px';
+            checkboxCell.style.borderBottom = '1px solid #ddd';
+            checkboxCell.style.textAlign = 'center';
+            
+            const rowCheckbox = document.createElement('input');
+            rowCheckbox.type = 'checkbox';
+            rowCheckbox.addEventListener('change', () => {
+                if (rowCheckbox.checked) {
+                    this.selectedRows.add(index);
+                } else {
+                    this.selectedRows.delete(index);
+                }
+                this.updateSelectionUI();
+                this.updateDeleteButtonVisibility();
+            });
+            
+            checkboxCell.appendChild(rowCheckbox);
+            row.appendChild(checkboxCell);
+
+            // Add data cells
             Array.from(columns).forEach(column => {
                 const td = document.createElement('td');
                 td.style.padding = '8px';
                 td.style.borderBottom = '1px solid #ddd';
+                td.style.overflow = 'hidden';
+                td.style.textOverflow = 'ellipsis';
+                td.style.whiteSpace = 'nowrap';
                 
                 let value = item[column];
-                // Handle Property type attributes
                 if (value && typeof value === 'object') {
                     if (value.type === 'Property' && 'value' in value) {
                         value = value.value;
@@ -475,6 +626,80 @@ class JsonTableEditor extends JsonEditor {
             this.displayTable(value);
         }
         return value;
+    }
+
+    /**
+     * Clear selection state
+     */
+    clearSelection() {
+        this.selectedRows.clear();
+        this.selectedColumns.clear();
+        this.updateSelectionUI();
+        this.updateDeleteButtonVisibility();
+    }
+
+    /**
+     * Update selection UI
+     */
+    updateSelectionUI() {
+        const table = this.tableContainer.querySelector('table');
+        if (!table) return;
+
+        // Update row checkboxes
+        table.querySelectorAll('tbody input[type="checkbox"]').forEach((checkbox, index) => {
+            checkbox.checked = this.selectedRows.has(index);
+        });
+
+        // Update column checkboxes
+        table.querySelectorAll('thead input[type="checkbox"]').forEach((checkbox, index) => {
+            checkbox.checked = this.selectedColumns.has(index);
+        });
+
+        // Update rows highlighting
+        table.querySelectorAll('tbody tr').forEach((row, index) => {
+            row.classList.toggle('selected', this.selectedRows.has(index));
+        });
+    }
+
+    /**
+     * Update delete button visibility
+     */
+    updateDeleteButtonVisibility() {
+        const deleteButton = this.toolbar.querySelector('.delete-button');
+        if (!deleteButton) return;
+
+        if (this.selectedRows.size > 0 || this.selectedColumns.size > 0) {
+            deleteButton.style.display = 'block';
+        } else {
+            deleteButton.style.display = 'none';
+        }
+    }
+
+    /**
+     * Handle delete action
+     */
+    handleDelete() {
+        const data = this.getValue(true);
+        if (!Array.isArray(data)) return;
+
+        // Create a new array without the selected rows
+        const newData = data.filter((_, index) => !this.selectedRows.has(index));
+
+        // Remove selected columns from remaining rows
+        if (this.selectedColumns.size > 0) {
+            const columns = Array.from(this.selectedColumns);
+            newData.forEach(row => {
+                columns.forEach(colIndex => {
+                    const key = Object.keys(row)[colIndex];
+                    delete row[key];
+                });
+            });
+        }
+
+        // Update the editor with the new data
+        this.setValue(JSON.stringify(newData, null, 2));
+        this.clearSelection();
+        this.updateDisplay();
     }
 }
 

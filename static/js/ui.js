@@ -10,6 +10,7 @@ class UIManager {
         this.setupTreeView();
         this.initializeEntityTypes();
         this.setupResizer();
+        this.setupSidebarToggle();
     }
 
     /**
@@ -83,17 +84,21 @@ class UIManager {
      * Toggle logs visibility
      */
     toggleLogs() {
-        const logContainer = document.getElementById("request-logs");
+        const logsContainer = document.getElementById("logs-container");
         const toggleButton = document.getElementById("toggleLogsBtn");
+        const toggleIcon = toggleButton?.querySelector('i');
         
-        if (!logContainer || !toggleButton) return;
+        if (!logsContainer || !toggleButton) return;
         
-        if (logContainer.style.display === "none") {
-            logContainer.style.display = "block";
-            toggleButton.textContent = "Hide Logs";
+        const isExpanded = logsContainer.classList.contains('expanded');
+        logsContainer.classList.toggle('expanded');
+        logsContainer.classList.toggle('collapsed');
+        
+        // Update button title and icon
+        if (isExpanded) {
+            toggleButton.title = "Maximize Logs";
         } else {
-            logContainer.style.display = "none";
-            toggleButton.textContent = "Show Logs";
+            toggleButton.title = "Minimize Logs";
         }
     }
 
@@ -207,6 +212,35 @@ class UIManager {
             document.removeEventListener('mousemove', handleMouseMove);
             document.removeEventListener('mouseup', handleMouseUp);
         };
+    }
+
+    /**
+     * Set up sidebar toggle functionality
+     */
+    setupSidebarToggle() {
+        const toggleBtn = document.getElementById('sidebarToggle');
+        const sidebar = document.getElementById('sidebar');
+        const mainContainer = document.getElementById('main-container');
+
+        if (toggleBtn && sidebar && mainContainer) {
+            toggleBtn.addEventListener('click', () => {
+                sidebar.classList.toggle('collapsed');
+                toggleBtn.classList.toggle('collapsed');
+                mainContainer.classList.toggle('sidebar-collapsed');
+                
+                // Update the toggle button icon
+                const icon = toggleBtn.querySelector('i');
+                if (icon) {
+                    if (sidebar.classList.contains('collapsed')) {
+                        icon.classList.remove('fa-bars');
+                        icon.classList.add('fa-bars-staggered');
+                    } else {
+                        icon.classList.remove('fa-bars-staggered');
+                        icon.classList.add('fa-bars');
+                    }
+                }
+            });
+        }
     }
 }
 

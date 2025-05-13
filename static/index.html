@@ -89,6 +89,9 @@
     <!-- Header Section -->
     <header id="top-header">
         <div class="branding">
+            <button id="sidebarToggle" class="sidebar-toggle" title="Toggle Sidebar">
+                <i class="fas fa-bars"></i>
+            </button>
             <img alt="SensorsReport Logo" id="brandLogo" src="images/SensorsReport.jpg" loading="lazy"/>
         </div>
         <div class="user-info">
@@ -226,9 +229,15 @@
             </div>
             <div id="fallbackUI"></div>
             <!-- Logs Section -->
-            <div id="logs-container">
-                <button class="method-button delete-button" id="clearLogsBtn">Clear Logs</button>
-                <button class="method-button patch-button" id="toggleLogsBtn">Hide Logs</button>
+            <div id="logs-container" class="expanded">
+                <div class="logs-header">
+                    <button class="icon-button" id="clearLogsBtn" title="Clear Logs">
+                        <i class="fas fa-trash-alt"></i>
+                    </button>
+                    <button class="icon-button" id="toggleLogsBtn" title="Minimize Logs">
+                        <i class="fas fa-chevron-down"></i>
+                    </button>
+                </div>
                 <div id="request-logs">
                     <p class="log-placeholder">Logs will appear here...</p>
                 </div>
