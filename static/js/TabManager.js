@@ -298,6 +298,50 @@ class TabManager {
         const activeTab = this.getActiveTab();
         return activeTab ? activeTab.editor : null;
     }
+
+    /**
+     * Initialize TabManager and create welcome tab
+     * @returns {Promise<TabManager>} The initialized TabManager instance
+     */
+    static async initialize() {
+        console.log('Initializing TabManager');
+        
+        // Create TabManager
+        const tabManager = new TabManager('#displayArea');
+        
+        // Create a default welcome tab
+        const welcomeTabId = `welcome-tab-${Date.now()}`;
+        const welcomeTab = tabManager.createTab('Welcome', welcomeTabId);
+        
+        // Create content container for welcome tab
+        const contentContainer = document.createElement('div');
+        contentContainer.className = 'editor-tab-content';
+        contentContainer.id = `${welcomeTabId}-content`;
+        contentContainer.style.height = '100%';
+        contentContainer.style.display = 'none'; // Hide initially
+        
+        // Add welcome content
+        contentContainer.innerHTML = `
+            <div style="padding: 20px;">
+                <h1>Welcome to SR Explorer</h1>
+                <p>Select an option from the menu on the left to get started.</p>
+            </div>
+        `;
+        
+        // Add the content container to tabs array
+        tabManager.tabs.push({
+            id: welcomeTabId,
+            tabElement: welcomeTab,
+            contentElement: contentContainer,
+            mode: 'welcome'
+        });
+        
+        // Add content to content area and activate tab
+        tabManager.contentArea.appendChild(contentContainer);
+        tabManager.activateTab(welcomeTabId);
+        
+        return tabManager;
+    }
 }
 
 // Add module exports

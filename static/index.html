@@ -48,9 +48,6 @@
 
         // Initialize when DOM is loaded and modules are ready
         document.addEventListener('DOMContentLoaded', async function() {
-            // Initialize TabManager first
-            await initializeTabManager();
-            
             // Setup token dialog after all modules are loaded
             if (typeof setupTokenButton === 'function') {
                 setupTokenButton();
@@ -236,123 +233,10 @@
     </div> -->
     
     <script>
-        // Function to initialize TabManager and load GET Entities tab
-        async function initializeTabManager() {
-            console.log('Initializing TabManager');
-            
-            // Create TabManager
-            window.tabManager = new TabManager('#displayArea');
-            
-            // Create a default welcome tab instead of loading entitiesGet.html
-            const welcomeTabId = `welcome-tab-${Date.now()}`;
-            const welcomeTab = window.tabManager.createTab('Welcome', welcomeTabId);
-            
-            // Create content container for welcome tab
-            const contentContainer = document.createElement('div');
-            contentContainer.className = 'editor-tab-content';
-            contentContainer.id = `${welcomeTabId}-content`;
-            contentContainer.style.height = '100%';
-            contentContainer.style.display = 'none'; // Hide initially
-            
-            // Add welcome content
-            contentContainer.innerHTML = `
-                <div style="padding: 20px;">
-                    <h2>Welcome to SensorsReport</h2>
-                    <p>This interface allows you to interact with the Orion-LD Context Broker.</p>
-                    <p>Use the sidebar navigation to:</p>
-                    <ul>
-                        <li>Create, update, and delete entities</li>
-                        <li>Work with data products</li>
-                        <li>Visualize entity relationships</li>
-                        <li>Access queue management</li>
-                    </ul>
-                    <p>Select an operation from the sidebar to get started.</p>
-                </div>
-            `;
-            
-            // Add the content to the content area
-            window.tabManager.contentArea.appendChild(contentContainer);
-            
-            // Store tab information
-            window.tabManager.tabs.push({
-                id: welcomeTabId,
-                tabElement: welcomeTab,
-                contentElement: contentContainer,
-                editor: null,
-                mode: 'html'
-            });
-            
-            // Activate the welcome tab
-            window.tabManager.activateTab(welcomeTabId);
-        }
-        
-        // Function to switch between entity operation modes
-        function switchToMode(mode) {
-            // This function will be called from the sidebar navigation
-            // It will be handled by the entitiesOperations.html page once loaded
-            console.log(`Switching to entity operation mode: ${mode}`);
-            
-            // Set a small delay to ensure the page has loaded
-            setTimeout(() => {
-                if (typeof window.switchToMode === 'function') {
-                    // Call the switchToMode function in the entitiesOperations.html page
-                    window.switchToMode(mode);
-                } else {
-                    console.error('switchToMode function not available in the loaded page');
-                }
-            }, 300);
-        }
-        
-        // Function to set up the Clear Auth and Clear All buttons
-        function setupClearButtons() {
-            // Set up Clear Auth button
-            const clearAuthButton = document.getElementById('clearAuthButton');
-            if (clearAuthButton) {
-                clearAuthButton.addEventListener('click', function() {
-                    if (typeof window.clearAuthData === 'function') {
-                        window.clearAuthData();
-                    } else {
-                        console.error('clearAuthData function not available');
-                    }
-                });
-            }
-            
-            // Set up Clear All button
-            const clearAllButton = document.getElementById('clearAllButton');
-            if (clearAllButton) {
-                clearAllButton.addEventListener('click', function() {
-                    if (typeof window.clearAllData === 'function') {
-                        window.clearAllData();
-                    } else {
-                        console.error('clearAllData function not available');
-                    }
-                });
-            }
-        }
-        
-        // OrionLDClient class for making API requests
-        class OrionLDClient {
-            constructor() {
-                this.baseUrl = '';  // Base URL is relative to allow for different deployments
-                this.headers = {
-                    'Content-Type': 'application/json',
-                    'Accept': 'application/json'
-                };
-                
-                // Add authentication token if available
-                const token = localStorage.getItem('auth_token');
-                if (token) {
-                    this.headers['Authorization'] = `Bearer ${token}`;
-                }
-                
-                // Add tenant header if available
-                const tenant = document.getElementById('tenantname')?.value;
-                if (tenant) {
-                    this.headers['NGSILD-Tenant'] = tenant;
-                }
-            }
-        }
+        // Initialize TabManager when the page loads
+        document.addEventListener('DOMContentLoaded', async () => {
+            window.tabManager = await TabManager.initialize();
+        });
     </script>
 </body>
-
 </html>
