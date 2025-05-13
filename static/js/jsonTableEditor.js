@@ -4,6 +4,8 @@
  */
 
 import JsonEditor from './jsonEditor.js';
+import { OrionLDClient } from './api.js';
+import { appendToLogs } from './logging.js';
 
 class JsonTableEditor extends JsonEditor {
     constructor(config) {
@@ -678,27 +680,53 @@ class JsonTableEditor extends JsonEditor {
     /**
      * Handle delete action
      */
-    handleDelete() {
+    async handleDelete() {
         const data = this.getValue(true);
         if (!Array.isArray(data)) return;
 
-        // Create a new array without the selected rows
-        const newData = data.filter((_, index) => !this.selectedRows.has(index));
+        const selectedIndexes = Array.from(this.selectedRows).sort();
+        if (selectedIndexes.length === 0) return;
 
-        // Remove selected columns from remaining rows
-        if (this.selectedColumns.size > 0) {
-            const columns = Array.from(this.selectedColumns);
-            newData.forEach(row => {
-                columns.forEach(colIndex => {
-                    const key = Object.keys(row)[colIndex];
-                    delete row[key];
-                });
-            });
+        if (!confirm(`Are you sure you want to delete ${selectedIndexes.length} selected entities? This action cannot be undone.`)) {
+            return;
         }
 
-        // Update the editor with the new data
-        this.setValue(JSON.stringify(newData, null, 2));
+        const client = new OrionLDClient();
+        const table = this.tableContainer.querySelector('table tbody');
+        const rows = table.querySelectorAll('tr');
+
+        // Process deletions one by one
+        for (const index of selectedIndexes) {
+            const entity = data[index];
+            if (!entity || !entity.id) continue;
+
+            try {
+                // Delete the entity from the backend
+                await client.deleteEntity(entity.id);
+                
+                // Remove the row from the table
+                if (rows[index]) {
+                    rows[index].remove();
+                }
+                
+                // Log success
+                console.log(`Successfully deleted entity: ${entity.id}`);
+                appendToLogs(`Successfully deleted entity: ${entity.id}`);
+            } catch (error) {
+                console.error(`Failed to delete entity ${entity.id}:`, error);
+                appendToLogs(`Error deleting entity ${entity.id}: ${error.message}`);
+                // Continue with next deletion even if one fails
+            }
+        }
+
+        // Clear selection state
         this.clearSelection();
+        
+        // Update the underlying JSON data
+        const remainingData = data.filter((_, index) => !this.selectedRows.has(index));
+        this.setValue(JSON.stringify(remainingData, null, 2));
+        
+        // Update the display
         this.updateDisplay();
     }
 }

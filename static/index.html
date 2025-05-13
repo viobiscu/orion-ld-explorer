@@ -257,9 +257,10 @@
         </div>
     </div> -->
     
-    <script>
+    <script type="module">
         // Initialize TabManager when the page loads
         document.addEventListener('DOMContentLoaded', async () => {
+            const { TabManager } = await import('./js/TabManager.js');
             window.tabManager = await TabManager.initialize();
         });
     </script>

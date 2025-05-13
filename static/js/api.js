@@ -1008,4 +1008,5 @@ function displayEntitiesInNewTab(data, type) {
     });
 }
 
+export { OrionLDClient };
 export default OrionLDClient;

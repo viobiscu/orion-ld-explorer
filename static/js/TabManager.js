@@ -350,4 +350,5 @@ class TabManager {
 
 // Add module exports
 window.TabManager = TabManager;
+export { TabManager };
 export default TabManager;
