@@ -125,14 +125,14 @@
                     }
                     
                     // Log the operation
-                    if (typeof appendToLogs === 'function') {
-                        appendToLogs(`Opened ${tabTitle} in a new tab`);
+                    if (typeof window.Logging !== 'undefined' && typeof window.Logging.appendToLogs === 'function') {
+                        window.Logging.appendToLogs(`Opened ${tabTitle} in a new tab`);
                     }
                 })
                 .catch(error => {
                     console.error('Error in handleEntityGet:', error);
-                    if (typeof appendToLogs === 'function') {
-                        appendToLogs(`Error loading content: ${error.message}`);
+                    if (typeof window.Logging !== 'undefined' && typeof window.Logging.appendToLogs === 'function') {
+                        window.Logging.appendToLogs(`Error loading content: ${error.message}`);
                     }
                     
                     // Display error in a new tab
@@ -181,8 +181,8 @@
                 
                 // Log the request
                 console.log(`Making GET request for entities of type: ${entityType}`);
-                if (typeof appendToLogs === 'function') {
-                    appendToLogs(`GET request for type: ${entityType}`);
+                if (typeof window.Logging !== 'undefined' && typeof window.Logging.appendToLogs === 'function') {
+                    window.Logging.appendToLogs(`GET request for type: ${entityType}`);
                 }
                 
                 // Return a promise that fetches the entities
@@ -269,8 +269,8 @@
                 }
                 
                 console.log(`Making GET request to: ${endpoint}`);
-                if (typeof appendToLogs === 'function') {
-                    appendToLogs(`GET request: ${endpoint}`);
+                if (typeof window.Logging !== 'undefined' && typeof window.Logging.appendToLogs === 'function') {
+                    window.Logging.appendToLogs(`GET request: ${endpoint}`);
                 }
                 
                 // Make the request
@@ -348,8 +348,8 @@
                         });
                     }
                     
-                    if (typeof appendToLogs === 'function') {
-                        appendToLogs(`Response received for ${endpoint}`);
+                    if (typeof window.Logging !== 'undefined' && typeof window.Logging.appendToLogs === 'function') {
+                        window.Logging.appendToLogs(`Response received for ${endpoint}`);
                     }
                 })
                 .catch(error => {
@@ -388,8 +388,8 @@
                         window.getResultsEditor.setValue(errorData);
                     }
                     
-                    if (typeof appendToLogs === 'function') {
-                        appendToLogs(`Error in request: ${error.message}`);
+                    if (typeof window.Logging !== 'undefined' && typeof window.Logging.appendToLogs === 'function') {
+                        window.Logging.appendToLogs(`Error in request: ${error.message}`);
                     }
                 });
             } catch (error) {
@@ -518,8 +518,8 @@
             }
             
             // Log the operation
-            if (typeof appendToLogs === 'function') {
-                appendToLogs(`Opened ${mode.toUpperCase()} Entity editor in a new tab`);
+            if (typeof window.Logging !== 'undefined' && typeof window.Logging.appendToLogs === 'function') {
+                window.Logging.appendToLogs(`Opened ${mode.toUpperCase()} Entity editor in a new tab`);
             }
         }
         
@@ -662,8 +662,8 @@
                         throw new Error(`Unsupported operation mode: ${action.mode}`);
                 }
                 
-                if (typeof appendToLogs === 'function') {
-                    appendToLogs(`${action.mode.toUpperCase()} operation executed for ${action.entityId || 'new entity'}`);
+                if (typeof window.Logging !== 'undefined' && typeof window.Logging.appendToLogs === 'function') {
+                    window.Logging.appendToLogs(`${action.mode.toUpperCase()} operation executed for ${action.entityId || 'new entity'}`);
                 }
                 
             } catch (error) {
@@ -674,6 +674,7 @@
     </script>
     
     <!-- Load our scripts with defer attribute and module type -->
+    <script src="js/logging.js" type="module" defer></script>
     <script src="js/auth-backend.js" type="module" defer></script>
     <script src="js/ui.js" type="module" defer></script>
     <script src="js/api.js" type="module" defer></script>
@@ -1172,8 +1173,8 @@
             
             // Log the action
             console.log('Authentication data cleared');
-            if (typeof appendToLogs === 'function') {
-                appendToLogs('Authentication data cleared');
+            if (typeof window.Logging !== 'undefined' && typeof window.Logging.appendToLogs === 'function') {
+                window.Logging.appendToLogs('Authentication data cleared');
             }
             
             // Show a message in the editor
@@ -1202,8 +1203,8 @@
                 
                 // Log the action
                 console.log('All localStorage data cleared');
-                if (typeof appendToLogs === 'function') {
-                    appendToLogs('All localStorage data cleared');
+                if (typeof window.Logging !== 'undefined' && typeof window.Logging.appendToLogs === 'function') {
+                    window.Logging.appendToLogs('All localStorage data cleared');
                 }
                 
                 // Show a message in the editor
@@ -1297,28 +1298,6 @@
                 const tenant = document.getElementById('tenantname')?.value;
                 if (tenant) {
                     this.headers['NGSILD-Tenant'] = tenant;
-                }
-            }
-        }
-        
-        // Function to append logs to the log container
-        function appendToLogs(message) {
-            const logsContainer = document.getElementById('request-logs');
-            if (logsContainer) {
-                const logItem = document.createElement('p');
-                logItem.className = 'log-item';
-                
-                // Add timestamp
-                const timestamp = new Date().toLocaleTimeString();
-                logItem.textContent = `[${timestamp}] ${message}`;
-                
-                // Prepend to show newest logs at the top
-                logsContainer.insertBefore(logItem, logsContainer.firstChild);
-                
-                // Remove placeholder if present
-                const placeholder = logsContainer.querySelector('.log-placeholder');
-                if (placeholder) {
-                    placeholder.remove();
                 }
             }
         }
