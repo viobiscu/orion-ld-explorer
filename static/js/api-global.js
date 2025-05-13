@@ -1,17 +1,9 @@
+import { appendToLogs } from './logging.js';
+
 /**
  * Global (non-module) version of the OrionLDClient
  * This file is meant to be loaded directly via a script tag
  */
-
-// Simple logger for debugging
-function appendToLogs(message) {
-    const logsContainer = document.getElementById('request-logs');
-    if (!logsContainer) return;
-    
-    const logElement = document.createElement('p');
-    logElement.textContent = `${new Date().toISOString()} - ${message}`;
-    logsContainer.insertBefore(logElement, logsContainer.firstChild);
-}
 
 // Basic error boundary implementation
 class SimpleErrorBoundary {

@@ -1,6 +1,8 @@
 /**
  * API client for interacting with the Orion-LD Context Broker
  */
+import { appendToLogs } from './logging.js';
+
 // Use try-catch to handle module import failures
 let ErrorBoundary, errorBoundary, store, authManager;
 
@@ -135,27 +137,6 @@ function fallbackDisplayJSON(data) {
         }
     } else {
         console.error('No display element found for JSON output');
-    }
-}
-
-export function appendToLogs(message) {
-    const logsContainer = document.getElementById('request-logs');
-    if (!logsContainer) return;
-    
-    const logElement = document.createElement('p');
-    logElement.className = 'log-item';
-    
-    // Consistent date formatting for logs
-    const timestamp = new Date().toLocaleTimeString();
-    logElement.textContent = `[${timestamp}] ${message}`;
-    
-    // Prepend to show newest logs at the top
-    logsContainer.insertBefore(logElement, logsContainer.firstChild);
-    
-    // Remove placeholder if present
-    const placeholder = logsContainer.querySelector('.log-placeholder');
-    if (placeholder) {
-        placeholder.remove();
     }
 }
 
