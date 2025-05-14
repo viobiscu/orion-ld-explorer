@@ -1405,7 +1405,7 @@ class JsonEditor {
     insertNGSIContext = () => {
         const contextTemplate = `"@context": [
     "https://ngsi-ld.sensorsreport.net/synchro-context.jsonld"
-]`;
+],`;
         
         // Insert directly as a string template, no need for JSON.stringify
         const start = this.textarea.selectionStart;

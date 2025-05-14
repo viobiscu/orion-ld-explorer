@@ -5,6 +5,7 @@
 import { appendToLogs } from './logging.js';
 import { clearLogs } from './logging.js';
 import { processGetData, processDeleteData } from './api.js';
+import { OrionLDClient } from './api.js';  // Add this import
 
 /**
  * Get a template for entity operations based on mode
@@ -312,11 +313,34 @@ export async function handleEntityGet(path) {
     }
 }
 
+/**
+ * Process PATCH request for entity updates
+ * @param {string} entityId - The ID of the entity to update
+ * @param {string} jsonData - The JSON data containing the updates
+ * @returns {Promise} Promise that resolves with the patch result
+ */
+export async function processPatchQuery(entityId, jsonData) {
+    try {
+        const client = new OrionLDClient();
+        const entityData = JSON.parse(jsonData);
+        
+        // Call updateEntity on the client
+        const result = await client.updateEntity(entityId, entityData);
+        appendToLogs(`Successfully processed PATCH request for ${entityId}`);
+        return result;
+    } catch (error) {
+        console.error('Error processing PATCH:', error);
+        appendToLogs(`Error processing PATCH: ${error.message}`);
+        throw error;
+    }
+}
+
 // Make functions available globally
 window.initializeUI = initializeUI;
 window.openEntityEditor = openEntityEditor;
 window.handleEntityGet = handleEntityGet;
 window.openMenuItemInTab = openMenuItemInTab;
+window.processPatchQuery = processPatchQuery;
 
 export default {
     initializeUI,
@@ -324,5 +348,6 @@ export default {
     initTreeView,
     openEntityEditor,
     handleEntityGet,
-    openMenuItemInTab
+    openMenuItemInTab,
+    processPatchQuery
 };
