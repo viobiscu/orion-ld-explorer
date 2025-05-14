@@ -123,9 +123,9 @@ class JsonTableEditor extends JsonEditor {
     createTableContainer() {
         this.tableContainer = document.createElement('div');
         this.tableContainer.className = 'json-table-container';
-        // Initialize with the correct display state based on viewMode
+        // Set max-width and add pointer-events-auto to ensure resizer still works
         this.tableContainer.style.cssText = this.viewMode === 'table' ? 
-            'display: block !important; width: 100%; height: 100%; overflow: auto; padding: 8px;' : 
+            'display: block !important; width: 100%; max-width: 100%; height: 100%; overflow: auto; padding: 8px; position: relative; pointer-events: auto;' : 
             'display: none !important;';
         this.editingArea.appendChild(this.tableContainer);
 
@@ -440,23 +440,98 @@ class JsonTableEditor extends JsonEditor {
             }
         });
 
-        // Create table HTML
+        // Calculate column widths based on content with smart scaling
+        const getContentWidth = (content) => {
+            if (!content) return 80; // Default minimum width
+            const canvas = document.createElement('canvas');
+            const context = canvas.getContext('2d');
+            context.font = '13px monospace'; // Match table font
+            const padding = 16; // Reduced padding even further
+            const measured = context.measureText(String(content)).width;
+            
+            // Aggressive sizing with diminishing returns for longer content
+            if (measured < 80) return Math.max(60, measured + padding);
+            if (measured < 120) return Math.min(120, measured + padding * 0.8);
+            if (measured < 160) return Math.min(160, measured + padding * 0.6);
+            return Math.min(200, measured + padding * 0.4); // Minimal padding for very long content
+        };
+
+        // Get optimized content width for each column
+        const columnWidths = new Map();
+        columns.forEach(column => {
+            let maxWidth = getContentWidth(this.formatColumnName(column));
+            let sampleSize = 0;
+            const maxSamples = 10; // Reduced sample size for better performance
+            
+            // Get average content length first
+            let totalLength = 0;
+            let samples = 0;
+            
+            for (const item of entities) {
+                if (samples++ >= maxSamples) break;
+                let value = item[column];
+                if (value && typeof value === 'object') {
+                    if (value.type === 'Property' && 'value' in value) {
+                        value = value.value;
+                    } else {
+                        value = JSON.stringify(value);
+                    }
+                }
+                totalLength += String(value || '').length;
+            }
+            
+            const avgLength = totalLength / samples;
+            
+            // If average length is small, we can use fewer samples
+            const effectiveMaxSamples = avgLength > 50 ? 5 : maxSamples;
+            
+            // Process actual content widths
+            for (const item of entities) {
+                if (sampleSize++ >= effectiveMaxSamples) break;
+                
+                let value = item[column];
+                if (value && typeof value === 'object') {
+                    if (value.type === 'Property' && 'value' in value) {
+                        value = value.value;
+                    } else {
+                        value = JSON.stringify(value);
+                    }
+                }
+                const contentWidth = getContentWidth(value);
+                maxWidth = Math.max(maxWidth, contentWidth);
+                
+                // Early exit if we hit max width
+                if (maxWidth >= 200) {
+                    maxWidth = 200;
+                    break;
+                }
+            }
+            columnWidths.set(column, maxWidth);
+        });
+
+        // Create table HTML with fixed layout and width constraints
         const table = document.createElement('table');
         table.className = 'json-table';
         table.style.width = '100%';
+        table.style.maxWidth = '100%';
+        table.style.tableLayout = 'fixed';
         table.style.borderCollapse = 'collapse';
         table.style.fontFamily = 'monospace';
         table.style.fontSize = '13px';
         table.style.marginBottom = '20px';
-        table.style.tableLayout = 'fixed';
-
+        table.style.position = 'relative';
+        table.style.zIndex = '1';
+        
         // Create header
         const thead = document.createElement('thead');
         const headerRow = document.createElement('tr');
 
-        // Add checkbox column header
+        // Add checkbox column header with fixed width
         const checkboxTh = document.createElement('th');
         checkboxTh.style.width = '40px';
+        checkboxTh.style.minWidth = '40px';
+        checkboxTh.style.maxWidth = '40px';
+        
         const selectAllCheckbox = document.createElement('input');
         selectAllCheckbox.type = 'checkbox';
         
@@ -497,7 +572,7 @@ class JsonTableEditor extends JsonEditor {
         checkboxTh.appendChild(selectAllCheckbox);
         headerRow.appendChild(checkboxTh);
 
-        // Add other column headers
+        // Add other column headers with calculated widths
         Array.from(columns).forEach((column) => {
             const th = document.createElement('th');
             th.textContent = this.formatColumnName(column);
@@ -507,6 +582,9 @@ class JsonTableEditor extends JsonEditor {
             th.style.fontWeight = 'bold';
             th.style.position = 'relative';
             th.style.userSelect = 'none';
+            th.style.width = `${columnWidths.get(column)}px`;
+            th.style.minWidth = '80px';
+            th.style.maxWidth = '200px';
             
             // Add tooltip with original name
             if (th.textContent !== column) {
@@ -592,6 +670,7 @@ class JsonTableEditor extends JsonEditor {
                 td.style.overflow = 'hidden';
                 td.style.textOverflow = 'ellipsis';
                 td.style.whiteSpace = 'nowrap';
+                td.style.maxWidth = '0'; // This forces text-overflow to work with table-layout: fixed
                 
                 let value = item[column];
                 if (value && typeof value === 'object') {
@@ -602,6 +681,7 @@ class JsonTableEditor extends JsonEditor {
                     }
                 }
                 td.textContent = value !== undefined ? value : '';
+                td.title = td.textContent; // Add tooltip to show full content on hover
                 
                 row.appendChild(td);
             });

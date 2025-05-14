@@ -85,6 +85,7 @@ class UIManager {
      */
     toggleLogs() {
         const logsContainer = document.getElementById("logs-container");
+        const displayArea = document.getElementById("displayArea");
         const toggleButton = document.getElementById("toggleLogsBtn");
         const toggleIcon = toggleButton?.querySelector('i');
         
@@ -93,13 +94,13 @@ class UIManager {
         const isExpanded = logsContainer.classList.contains('expanded');
         logsContainer.classList.toggle('expanded');
         logsContainer.classList.toggle('collapsed');
+        displayArea.classList.toggle('logs-expanded', !isExpanded);
         
-        // Update button title and icon
-        if (isExpanded) {
-            toggleButton.title = "Maximize Logs";
-        } else {
-            toggleButton.title = "Minimize Logs";
-        }
+        // Update button title
+        toggleButton.title = isExpanded ? "Maximize Logs" : "Minimize Logs";
+
+        // Trigger resize event for editor to adjust
+        window.dispatchEvent(new Event('resize'));
     }
 
     /**

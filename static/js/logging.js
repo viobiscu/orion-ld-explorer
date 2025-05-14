@@ -16,8 +16,9 @@ export function appendToLogs(message) {
     const timestamp = new Date().toISOString();
     logItem.textContent = `[${timestamp}] ${message}`;
     
-    // Add the new log at the top
-    logsContainer.insertBefore(logItem, logsContainer.firstChild);
+    // Add the new log at the bottom and scroll into view
+    logsContainer.appendChild(logItem);
+    logItem.scrollIntoView({ behavior: 'smooth', block: 'end' });
     
     // Remove placeholder if present
     const placeholder = logsContainer.querySelector('.log-placeholder');

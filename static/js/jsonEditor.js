@@ -659,6 +659,14 @@ class JsonEditor {
     handleResize = () => {
         // Update display and line numbers after resize
         this.updateDisplay();
+        
+        // Adjust editor height to match container
+        if (this.editorContainer && this.editorContainer.parentElement) {
+            const parentHeight = this.editorContainer.parentElement.clientHeight;
+            if (parentHeight > 0) {
+                this.editorContainer.style.height = `${parentHeight}px`;
+            }
+        }
     }
     
     /**
