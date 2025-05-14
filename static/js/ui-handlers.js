@@ -167,10 +167,8 @@ export function openEntityEditor(mode) {
                     return window.processPatchQuery(entityId, JSON.stringify(data));
                 }
             } else if (operation === 'DELETE') {
-                if (confirm(`Are you sure you want to delete entity "${entityId}"? This action cannot be undone.`)) {
-                    if (typeof window.processDeleteQuery === 'function') {
-                        return window.processDeleteQuery(entityId);
-                    }
+                if (typeof window.processDeleteQuery === 'function') {
+                    return window.processDeleteQuery(entityId);
                 }
             }
             
@@ -180,7 +178,6 @@ export function openEntityEditor(mode) {
         onSave: function(value) {
             try {
                 const parsedValue = JSON.parse(value);
-                // Save to localStorage for persistence
                 localStorage.setItem(`entity${mode.charAt(0).toUpperCase() + mode.slice(1)}Json`, JSON.stringify(parsedValue));
                 console.log(`Saved ${mode} JSON to localStorage`);
             } catch (e) {
@@ -357,6 +354,26 @@ export async function processPutQuery(entityId, jsonData) {
     }
 }
 
+/**
+ * Process DELETE request for entity deletion
+ * @param {string} entityId - The ID of the entity to delete
+ * @returns {Promise} Promise that resolves with the delete result
+ */
+export async function processDeleteQuery(entityId) {
+    try {
+        const client = new OrionLDClient();
+        
+        // Call deleteEntity on the client
+        const result = await client.deleteEntity(entityId);
+        appendToLogs(`Successfully processed DELETE request for ${entityId}`);
+        return result;
+    } catch (error) {
+        console.error('Error processing DELETE:', error);
+        appendToLogs(`Error processing DELETE: ${error.message}`);
+        throw error;
+    }
+}
+
 // Make functions available globally
 window.initializeUI = initializeUI;
 window.openEntityEditor = openEntityEditor;
@@ -364,6 +381,7 @@ window.handleEntityGet = handleEntityGet;
 window.openMenuItemInTab = openMenuItemInTab;
 window.processPatchQuery = processPatchQuery;
 window.processPutQuery = processPutQuery;
+window.processDeleteQuery = processDeleteQuery; // Add this line
 
 export default {
     initializeUI,
@@ -373,5 +391,6 @@ export default {
     handleEntityGet,
     openMenuItemInTab,
     processPatchQuery,
-    processPutQuery
+    processPutQuery,
+    processDeleteQuery // Add this line
 };
