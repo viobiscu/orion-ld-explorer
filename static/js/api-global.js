@@ -43,7 +43,6 @@ const errorBoundary = new SimpleErrorBoundary();
 class OrionLDClient {
     constructor(baseURL = null, contextURL = null) {
         // Use the local backend to proxy requests instead of direct connection
-        // This solves CORS issues by routing through our backend
         this.backendBaseUrl = window.location.origin;
         
         // Set base URL with fallback to proxy path
@@ -55,8 +54,17 @@ class OrionLDClient {
         // Set default headers
         this.headers = {
             "Content-Type": "application/ld+json",
-            "Accept": "application/json"
+            "Accept": "application/json",
+            "Cache-Control": "no-cache, no-store, must-revalidate",
+            "Pragma": "no-cache"
         };
+        
+        // Add Authorization header if token is available
+        const token = localStorage.getItem('auth_token') || localStorage.getItem('access_token');
+        if (token) {
+            this.headers['Authorization'] = `Bearer ${token}`;
+            console.log('Added Authorization header with token');
+        }
         
         // Add tenant header if available and not "default" or "Synchro"
         const tenantInputValue = document.getElementById('tenantname')?.value;

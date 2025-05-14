@@ -335,12 +335,35 @@ export async function processPatchQuery(entityId, jsonData) {
     }
 }
 
+/**
+ * Process PUT request for entity replacement
+ * @param {string} entityId - The ID of the entity to replace
+ * @param {string} jsonData - The JSON data containing the full entity
+ * @returns {Promise} Promise that resolves with the put result
+ */
+export async function processPutQuery(entityId, jsonData) {
+    try {
+        const client = new OrionLDClient();
+        const entityData = JSON.parse(jsonData);
+        
+        // Call replaceEntity on the client
+        const result = await client.replaceEntity(entityId, entityData);
+        appendToLogs(`Successfully processed PUT request for ${entityId}`);
+        return result;
+    } catch (error) {
+        console.error('Error processing PUT:', error);
+        appendToLogs(`Error processing PUT: ${error.message}`);
+        throw error;
+    }
+}
+
 // Make functions available globally
 window.initializeUI = initializeUI;
 window.openEntityEditor = openEntityEditor;
 window.handleEntityGet = handleEntityGet;
 window.openMenuItemInTab = openMenuItemInTab;
 window.processPatchQuery = processPatchQuery;
+window.processPutQuery = processPutQuery;
 
 export default {
     initializeUI,
@@ -349,5 +372,6 @@ export default {
     openEntityEditor,
     handleEntityGet,
     openMenuItemInTab,
-    processPatchQuery
+    processPatchQuery,
+    processPutQuery
 };
