@@ -240,10 +240,13 @@ pre#jsonDisplay {
   border-radius: 4px;
   border: 1px solid #ccc;
   width: 250px;
+  background-color: #fff;
 }
+
 .input-box:focus {
   outline: none;
   border-color: #007bff;
+  background-color: #fff;
 }
 
 .custom-icon {
@@ -303,6 +306,7 @@ pre#jsonDisplay {
   border: 1px solid #ddd;
   border-radius: 4px;
   font-size: 16px;
+  background-color: #fff;
 }
 
 .form-group button {

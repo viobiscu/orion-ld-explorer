@@ -1,0 +1,134 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>JsonFormEditor Test</title>
+    <link rel="stylesheet" href="css/json-form-editor.css">
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            margin: 20px;
+            padding: 0;
+        }
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+        .test-controls {
+            margin-bottom: 20px;
+            padding: 15px;
+            background: #f8f9fa;
+            border-radius: 4px;
+        }
+        .test-container {
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            padding: 20px;
+            margin-bottom: 20px;
+        }
+        button {
+            padding: 8px 16px;
+            margin: 5px;
+            border: none;
+            border-radius: 4px;
+            background: #007bff;
+            color: white;
+            cursor: pointer;
+        }
+        button:hover {
+            background: #0056b3;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>JsonFormEditor Test</h1>
+        
+        <div class="test-controls">
+            <h3>Test Controls</h3>
+            <button onclick="loadSimpleData()">Load Simple Data</button>
+            <button onclick="loadComplexData()">Load Complex Data</button>
+            <button onclick="loadNGSIData()">Load NGSI-LD Data</button>
+        </div>
+
+        <div class="test-container">
+            <div id="formEditorContainer" style="height: 600px;"></div>
+        </div>
+    </div>
+
+    <script type="module">
+        import { JsonFormEditor } from './js/jsonFormEditor.js';
+        
+        // Initialize the form editor
+        window.formEditor = new JsonFormEditor({
+            containerId: 'formEditorContainer',
+            formConfig: {
+                autoValidate: true,
+                schemaUrl: '/js/schemas/entity.json'
+            }
+        });
+
+        // Test data loaders
+        window.loadSimpleData = function() {
+            const simpleData = {
+                name: "Test Entity",
+                description: "A simple test entity",
+                enabled: true,
+                count: 42
+            };
+            window.formEditor.setValue(simpleData);
+        };
+
+        window.loadComplexData = function() {
+            const complexData = {
+                id: "urn:ngsi-ld:TestEntity:001",
+                type: "TestEntity",
+                metadata: {
+                    created: new Date().toISOString(),
+                    version: "1.0",
+                    tags: ["test", "demo"]
+                },
+                configuration: {
+                    timeout: 1000,
+                    retries: 3,
+                    settings: {
+                        mode: "advanced",
+                        logging: true
+                    }
+                }
+            };
+            window.formEditor.setValue(complexData);
+        };
+
+        window.loadNGSIData = function() {
+            const ngsiData = {
+                "id": "urn:ngsi-ld:Device:001",
+                "type": "Device",
+                "@context": [
+                    "https://ngsi-ld.sensorsreport.net/synchro-context.jsonld"
+                ],
+                "temperature": {
+                    "type": "Property",
+                    "value": 23.4,
+                    "unitCode": "CEL",
+                    "observedAt": new Date().toISOString()
+                },
+                "location": {
+                    "type": "GeoProperty",
+                    "value": {
+                        "type": "Point",
+                        "coordinates": [13.3986, 52.5547]
+                    }
+                },
+                "isConnectedTo": {
+                    "type": "Relationship",
+                    "object": "urn:ngsi-ld:Device:002",
+                    "observedAt": new Date().toISOString()
+                }
+            };
+            window.formEditor.setValue(ngsiData);
+        };
+    </script>
+</body>
+</html>

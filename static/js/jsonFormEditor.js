@@ -9,6 +9,7 @@ class JsonFormEditor {
      * @param {Object} [config.formConfig] Form-specific configuration
      * @param {string} [config.formConfig.schemaUrl] URL to fetch JSON schema from
      * @param {boolean} [config.formConfig.autoValidate=true] Whether to validate on input
+     * @param {string} [config.entityId] ID of the entity to load and edit
      */
     constructor(config) {
         this.containerId = config.containerId;
@@ -22,18 +23,49 @@ class JsonFormEditor {
         this.formFields = new Map();
         this.formErrors = new Map();
         this.schema = null;
+        this.entityId = config.entityId;
+        this.client = new OrionLDClient();
         
         // Initialize form structure
         this.createFormElements();
         
-        // Set initial value if provided
-        if (config.initialValue) {
+        // If entityId is provided, load the entity data
+        if (this.entityId) {
+            this.loadEntityData();
+        }
+        // Set initial value if provided (and no entityId)
+        else if (config.initialValue) {
             this.setValue(config.initialValue);
         }
         
         // Fetch schema if URL is provided
         if (this.formConfig.schemaUrl) {
             this.fetchSchema();
+        }
+    }
+
+    /**
+     * Load entity data by ID
+     * @returns {Promise<void>}
+     */
+    async loadEntityData() {
+        try {
+            // Show loading state
+            this.formContainer.innerHTML = '<div class="loading">Loading entity data...</div>';
+            
+            // Fetch entity data
+            const entityData = await this.client.getEntity(this.entityId);
+            
+            // Set the form value with the entity data
+            this.setValue(entityData);
+        } catch (error) {
+            console.error('Error loading entity:', error);
+            this.formContainer.innerHTML = `
+                <div class="json-form-error">
+                    Error loading entity: ${error.message}
+                    <button onclick="this.loadEntityData()">Retry</button>
+                </div>
+            `;
         }
     }
     
@@ -251,26 +283,67 @@ class JsonFormEditor {
         
         // Create input based on type
         let input;
-        if (options) {
-            input = this.createSelectInput(options, value);
-        } else {
-            input = this.createInput(type, { ...config, value });
-        }
-        
-        // Add input to container
-        fieldContainer.appendChild(input);
-        this.formContainer.appendChild(fieldContainer);
-        
-        // Store field reference
-        this.formFields.set(name, { input, config: { ...config, type } });
-        
-        // Add validation handlers
-        if (this.autoValidate) {
-            input.addEventListener('input', () => this.validateField(name));
-            input.addEventListener('blur', () => this.validateField(name));
+        try {
+            if (options) {
+                input = this.createSelectInput(options, value);
+            } else {
+                input = this.createInput(type, { ...config, value });
+            }
+            
+            // Add input to container
+            fieldContainer.appendChild(input);
+            this.formContainer.appendChild(fieldContainer);
+            
+            // Store field reference with container
+            this.formFields.set(name, { 
+                input,
+                container: fieldContainer,
+                config: { ...config, type }
+            });
+            
+            // Add validation handlers
+            if (this.autoValidate) {
+                const validateOnChange = () => {
+                    if (this.validateField(name)) {
+                        // If valid, update the form data
+                        this.updateFormData();
+                    }
+                };
+                
+                // For compound inputs (Property, Relationship, GeoProperty)
+                if (input.classList.contains('json-form-property') ||
+                    input.classList.contains('json-form-relationship') ||
+                    input.classList.contains('json-form-geoproperty')) {
+                    const inputs = input.querySelectorAll('.json-form-input');
+                    inputs.forEach(childInput => {
+                        childInput.addEventListener('input', validateOnChange);
+                        childInput.addEventListener('blur', validateOnChange);
+                    });
+                } else {
+                    input.addEventListener('input', validateOnChange);
+                    input.addEventListener('blur', validateOnChange);
+                }
+            }
+            
+        } catch (error) {
+            console.error(`Error creating field ${name}:`, error);
+            const errorDiv = document.createElement('div');
+            errorDiv.className = 'json-form-error';
+            errorDiv.textContent = `Error creating field: ${error.message}`;
+            fieldContainer.appendChild(errorDiv);
         }
     }
-
+    
+    /**
+     * Update form data when field values change
+     */
+    updateFormData() {
+        const data = this.getValue();
+        if (typeof this.onChange === 'function') {
+            this.onChange(data);
+        }
+    }
+    
     /**
      * Create an input element
      * @param {string} type Input type
@@ -460,7 +533,7 @@ class JsonFormEditor {
      */
     validateField(fieldName) {
         const field = this.formFields.get(fieldName);
-        if (!field) return true;
+        if (!field?.input) return true;
         
         const { input, config } = field;
         const value = this.getFieldValue(input);
@@ -468,13 +541,29 @@ class JsonFormEditor {
         // Clear previous error
         this.clearFieldError(fieldName);
         
-        // Required field validation
-        if (config.required && value === '') {
-            this.setFieldError(fieldName, 'This field is required');
+        try {
+            // Required field validation
+            if (config.required && (value === '' || value === undefined)) {
+                this.setFieldError(fieldName, 'This field is required');
+                return false;
+            }
+            
+            // NGSI-LD specific validation
+            if (config.type === 'relationship') {
+                const uriPattern = /^urn:ngsi-ld:[a-zA-Z0-9]+:[a-zA-Z0-9_-]+$/;
+                const objectInput = input.querySelector('.json-form-input');
+                if (objectInput && !uriPattern.test(objectInput.value)) {
+                    this.setFieldError(fieldName, 'Invalid NGSI-LD entity URI format');
+                    return false;
+                }
+            }
+            
+            return true;
+        } catch (error) {
+            console.error(`Error validating field ${fieldName}:`, error);
+            this.setFieldError(fieldName, 'Validation error occurred');
             return false;
         }
-        
-        return true;
     }
     
     /**
@@ -484,19 +573,23 @@ class JsonFormEditor {
      */
     setFieldError(fieldName, message) {
         const field = this.formFields.get(fieldName);
-        if (!field) return;
-        
-        const { container, input } = field;
+        if (!field?.container) return;
         
         // Add error classes
-        container.classList.add('is-invalid');
-        input.classList.add('is-invalid');
+        field.container.classList.add('is-invalid');
         
-        // Add error message
-        const errorDiv = document.createElement('div');
-        errorDiv.className = 'json-form-error';
+        // For compound inputs (Property, Relationship, GeoProperty)
+        const inputs = field.container.querySelectorAll('.json-form-input');
+        inputs.forEach(input => input.classList.add('is-invalid'));
+        
+        // Add error message if it doesn't exist
+        let errorDiv = field.container.querySelector('.json-form-error');
+        if (!errorDiv) {
+            errorDiv = document.createElement('div');
+            errorDiv.className = 'json-form-error';
+            field.container.appendChild(errorDiv);
+        }
         errorDiv.textContent = message;
-        container.appendChild(errorDiv);
         
         this.formErrors.set(fieldName, message);
     }
@@ -507,16 +600,17 @@ class JsonFormEditor {
      */
     clearFieldError(fieldName) {
         const field = this.formFields.get(fieldName);
-        if (!field) return;
-        
-        const { container, input } = field;
+        if (!field?.container) return;
         
         // Remove error classes
-        container.classList.remove('is-invalid');
-        input.classList.remove('is-invalid');
+        field.container.classList.remove('is-invalid');
+        
+        // For compound inputs (Property, Relationship, GeoProperty)
+        const inputs = field.container.querySelectorAll('.json-form-input');
+        inputs.forEach(input => input.classList.remove('is-invalid'));
         
         // Remove error message
-        const errorDiv = container.querySelector('.json-form-error');
+        const errorDiv = field.container.querySelector('.json-form-error');
         if (errorDiv) errorDiv.remove();
         
         this.formErrors.delete(fieldName);

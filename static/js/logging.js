@@ -14,7 +14,50 @@ export function appendToLogs(message) {
     
     // Add timestamp to message
     const timestamp = new Date().toISOString();
-    logItem.textContent = `[${timestamp}] ${message}`;
+    
+    // Check if the message contains a response status code
+    if (message.includes('Response:')) {
+        const statusMatch = message.match(/Response: (\d{3})/);
+        if (statusMatch) {
+            const statusCode = parseInt(statusMatch[1]);
+            const statusText = message.split(statusMatch[0])[1] || '';
+            
+            // Create span for timestamp
+            const timestampSpan = document.createElement('span');
+            timestampSpan.textContent = `[${timestamp}] `;
+            
+            // Create span for "Response: "
+            const responseSpan = document.createElement('span');
+            responseSpan.textContent = 'Response: ';
+            
+            // Create span for status code with color
+            const statusSpan = document.createElement('span');
+            statusSpan.textContent = statusCode;
+            
+            // Apply color based on status code
+            if (statusCode >= 200 && statusCode < 300) {
+                statusSpan.style.color = '#28a745'; // Green for success
+            } else if (statusCode >= 400 && statusCode < 500) {
+                statusSpan.style.color = '#dc3545'; // Red for client errors
+            } else if (statusCode >= 500) {
+                statusSpan.style.color = '#ffc107'; // Yellow for server errors
+            }
+            
+            // Create span for the rest of the message
+            const textSpan = document.createElement('span');
+            textSpan.textContent = statusText;
+            
+            // Combine all parts
+            logItem.appendChild(timestampSpan);
+            logItem.appendChild(responseSpan);
+            logItem.appendChild(statusSpan);
+            logItem.appendChild(textSpan);
+        } else {
+            logItem.textContent = `[${timestamp}] ${message}`;
+        }
+    } else {
+        logItem.textContent = `[${timestamp}] ${message}`;
+    }
     
     // Add the new log at the bottom and scroll into view
     logsContainer.appendChild(logItem);

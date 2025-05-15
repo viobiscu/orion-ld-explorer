@@ -48,6 +48,21 @@
   font-size: 16px;
 }
 
+.toolbar .search-input {
+    border: none;
+    background-color: #fff;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    padding: 4px 8px;
+    font-size: 14px;
+}
+
+.toolbar .search-input:focus {
+    outline: none;
+    border-color: #007bff;
+    background-color: #fff;
+}
+
 /* Info labels and tenant container */
 .info-label {
   font-weight: 500;

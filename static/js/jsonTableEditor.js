@@ -673,7 +673,7 @@ class JsonTableEditor extends JsonEditor {
      * Open form editor modal for an entity
      * @param {Object} entity The entity to edit
      */
-    openFormEditor(entity) {
+    async openFormEditor(entity) {
         console.log('[Debug] Opening form editor modal for entity:', entity);
         if (!entity || !entity.id) {
             console.error('[Debug] Invalid entity for form editor');
@@ -694,109 +694,139 @@ class JsonTableEditor extends JsonEditor {
         modal.style.alignItems = 'center';
         modal.style.zIndex = '9999';
 
-        // Create modal content
-        const modalContent = document.createElement('div');
-        modalContent.className = 'json-editor-modal-content';
-        modalContent.style.backgroundColor = 'white';
-        modalContent.style.padding = '20px';
-        modalContent.style.borderRadius = '8px';
-        modalContent.style.boxShadow = '0 2px 10px rgba(0, 0, 0, 0.1)';
-        modalContent.style.width = '80%';
-        modalContent.style.maxWidth = '1200px';
-        modalContent.style.height = '80vh'; // Set a fixed height using viewport height
-        modalContent.style.minHeight = '500px'; // Set a minimum height
-        modalContent.style.display = 'flex';
-        modalContent.style.flexDirection = 'column';
-        modalContent.style.position = 'relative';
-
-        // Add close button
-        const closeButton = document.createElement('button');
-        closeButton.innerHTML = '✕';
-        closeButton.style.position = 'absolute';
-        closeButton.style.right = '10px';
-        closeButton.style.top = '10px';
-        closeButton.style.border = 'none';
-        closeButton.style.background = 'none';
-        closeButton.style.fontSize = '20px';
-        closeButton.style.cursor = 'pointer';
-        closeButton.style.color = '#666';
-        closeButton.onclick = () => modal.remove();
-        modalContent.appendChild(closeButton);
-
-        // Create form editor container with full remaining height
-        const editorContainer = document.createElement('div');
-        const editorId = `form-editor-${Date.now()}`;
-        editorContainer.id = editorId;
-        editorContainer.style.flexGrow = '1'; // Take up remaining space
-        editorContainer.style.minHeight = '0'; // Allow container to shrink
-        editorContainer.style.marginTop = '20px';
-        modalContent.appendChild(editorContainer);
-
-        // Add modal to DOM
-        modal.appendChild(modalContent);
+        // Create loading indicator
+        const loadingDiv = document.createElement('div');
+        loadingDiv.className = 'loading-indicator';
+        loadingDiv.textContent = 'Loading entity data...';
+        loadingDiv.style.color = 'white';
+        loadingDiv.style.fontSize = '16px';
+        modal.appendChild(loadingDiv);
         document.body.appendChild(modal);
 
-        // Initialize JsonFormEditor after ensuring container is in DOM
-        requestAnimationFrame(() => {
-            if (window.currentFormEditor) {
-                console.log('[Debug] Cleaning up existing form editor instance');
-                window.currentFormEditor.destroy?.();
-            }
+        try {
+            // Fetch fresh entity data from Orion-LD
+            const client = new OrionLDClient();
+            const freshEntityData = await client.getEntity(entity.id);
+            console.log('[Debug] Fetched fresh entity data:', freshEntityData);
 
-            console.log('[Debug] Creating new form editor instance with config:', {
-                containerId: editorId,
-                schemaUrl: this.schema?.url || '/js/schemas/entity.json'
-            });
+            // Remove loading indicator
+            loadingDiv.remove();
 
-            const formEditor = new JsonFormEditor({
-                containerId: editorId,
-                initialValue: JSON.stringify(entity, null, 2),
-                height: '100%', // Use full height of container
-                formConfig: {
-                    schemaUrl: this.schema?.url || '/js/schemas/entity.json',
-                    autoValidate: true,
-                    reuseDom: true
+            // Create modal content
+            const modalContent = document.createElement('div');
+            modalContent.className = 'json-editor-modal-content';
+            modalContent.style.backgroundColor = 'white';
+            modalContent.style.padding = '20px';
+            modalContent.style.borderRadius = '8px';
+            modalContent.style.boxShadow = '0 2px 10px rgba(0, 0, 0, 0.1)';
+            modalContent.style.width = '80%';
+            modalContent.style.maxWidth = '1200px';
+            modalContent.style.height = '80vh';
+            modalContent.style.minHeight = '500px';
+            modalContent.style.display = 'flex';
+            modalContent.style.flexDirection = 'column';
+            modalContent.style.position = 'relative';
+
+            // Add close button
+            const closeButton = document.createElement('button');
+            closeButton.innerHTML = '✕';
+            closeButton.style.position = 'absolute';
+            closeButton.style.right = '10px';
+            closeButton.style.top = '10px';
+            closeButton.style.border = 'none';
+            closeButton.style.background = 'none';
+            closeButton.style.fontSize = '20px';
+            closeButton.style.cursor = 'pointer';
+            closeButton.style.color = '#666';
+            closeButton.onclick = () => {
+                modal.remove();
+                window.currentFormEditor?.destroy?.();
+                window.currentFormEditor = null;
+            };
+            modalContent.appendChild(closeButton);
+
+            // Create form editor container
+            const editorContainer = document.createElement('div');
+            const editorId = `form-editor-${Date.now()}`;
+            editorContainer.id = editorId;
+            editorContainer.style.flexGrow = '1';
+            editorContainer.style.minHeight = '0';
+            editorContainer.style.marginTop = '20px';
+            modalContent.appendChild(editorContainer);
+
+            // Update modal content
+            modal.innerHTML = '';
+            modal.appendChild(modalContent);
+
+            // Initialize JsonFormEditor with fresh data
+            requestAnimationFrame(() => {
+                if (window.currentFormEditor) {
+                    console.log('[Debug] Cleaning up existing form editor instance');
+                    window.currentFormEditor.destroy?.();
                 }
+
+                console.log('[Debug] Creating new form editor instance with config:', {
+                    containerId: editorId,
+                    schemaUrl: this.schema?.url || '/js/schemas/entity.json'
+                });
+                console.log('[Debug] Initializing form editor with fresh entity data:', freshEntityData);
+
+                const formEditor = new JsonFormEditor({
+                    containerId: editorId,
+                    initialValue: JSON.stringify(freshEntityData, null, 2),
+                    height: '100%',
+                    formConfig: {
+                        schemaUrl: this.schema?.url || '/js/schemas/entity.json',
+                        autoValidate: true,
+                        reuseDom: true
+                    }
+                });
+
+                window.currentFormEditor = formEditor;
+                console.log('[Debug] Form editor initialized with fresh data');
+
+                formEditor.onSave = async (updatedData) => {
+                    console.log('[Debug] Form editor save handler called with data:', updatedData);
+                    try {
+                        await client.replaceEntity(entity.id, updatedData);
+                        console.log('[Debug] Entity updated successfully');
+                        modal.remove();
+                        this.updateDisplay();
+                        this.showValidationMessage('Entity updated successfully', true);
+                    } catch (error) {
+                        console.error('[Debug] Error updating entity:', error);
+                        this.showValidationMessage(`Error updating entity: ${error.message}`, false);
+                    }
+                };
             });
 
-            window.currentFormEditor = formEditor;
-            console.log('[Debug] Form editor initialized and stored in window.currentFormEditor');
-
-            formEditor.onSave = async (updatedData) => {
-                console.log('[Debug] Form editor save handler called with data:', updatedData);
-                try {
-                    const client = new OrionLDClient();
-                    await client.replaceEntity(entity.id, updatedData);
-                    console.log('[Debug] Entity updated successfully');
+            // Handle escape key to close modal
+            const handleEscape = (e) => {
+                if (e.key === 'Escape') {
                     modal.remove();
-                    this.updateDisplay();
-                    this.showValidationMessage('Entity updated successfully', true);
-                } catch (error) {
-                    console.error('[Debug] Error updating entity:', error);
-                    this.showValidationMessage(`Error updating entity: ${error.message}`, false);
+                    window.currentFormEditor?.destroy?.();
+                    window.currentFormEditor = null;
+                    document.removeEventListener('keydown', handleEscape);
                 }
             };
-        });
+            document.addEventListener('keydown', handleEscape);
 
-        // Handle escape key to close modal and cleanup
-        const handleEscape = (e) => {
-            if (e.key === 'Escape') {
-                modal.remove();
-                window.currentFormEditor?.destroy?.();
-                window.currentFormEditor = null;
-                document.removeEventListener('keydown', handleEscape);
-            }
-        };
-        document.addEventListener('keydown', handleEscape);
+            // Handle click outside modal
+            modal.addEventListener('click', (e) => {
+                if (e.target === modal) {
+                    modal.remove();
+                    window.currentFormEditor?.destroy?.();
+                    window.currentFormEditor = null;
+                }
+            });
 
-        // Handle click outside modal to close and cleanup
-        modal.addEventListener('click', (e) => {
-            if (e.target === modal) {
+        } catch (error) {
+            console.error('[Debug] Error fetching entity data:', error);
+            loadingDiv.textContent = `Error loading entity: ${error.message}`;
+            setTimeout(() => {
                 modal.remove();
-                window.currentFormEditor?.destroy?.();
-                window.currentFormEditor = null;
-            }
-        });
+            }, 3000);
+        }
     }
 
     /**
