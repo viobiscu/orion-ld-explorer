@@ -4,6 +4,7 @@
  */
 
 import JsonEditor from './jsonEditor.js';
+import { JsonFormEditor } from './jsonFormEditor.js';
 import { OrionLDClient } from './api.js';
 import { appendToLogs } from './logging.js';
 
@@ -186,8 +187,6 @@ class JsonTableEditor extends JsonEditor {
      * Toggle between table and JSON view
      */
     toggleView() {
-        console.log('[Debug] toggleView starting - Current state:', this.debugDOMState());
-        
         // Validate required elements exist
         if (!this.editorWrapper || !this.tableContainer) {
             console.error('[Debug] Critical elements missing for view toggle:', {
@@ -196,27 +195,33 @@ class JsonTableEditor extends JsonEditor {
             });
             return;
         }
-        
-        // Store previous state for debugging
+
+        // Store previous state
         const previousMode = this.viewMode;
-        const previousState = this.debugDOMState();
+        console.log('[Debug] Switching view mode:', {
+            from: previousMode,
+            to: previousMode === 'table' ? 'json' : 'table'
+        });
         
-        // Perform the toggle
+        // Toggle view mode
         this.viewMode = this.viewMode === 'table' ? 'json' : 'table';
         
-        console.log('[Debug] View mode changing:', {
-            from: previousMode,
-            to: this.viewMode,
-            previousState: previousState
-        });
-
-        // Force display updates with !important to override any conflicting styles
+        // Clear existing content before switching views to prevent duplicates
         if (this.viewMode === 'table') {
+            console.log('[Debug] Switching to table view - Setting display states');
+            // Switch to table view
             this.editorWrapper.style.cssText = 'display: none !important;';
             this.tableContainer.style.cssText = 'display: block !important; width: 100%; height: 100%; overflow: auto; padding: 8px;';
-            // Ensure table is properly rendered
+            
+            // Clear and rebuild table
+            this.tableContainer.innerHTML = '';
             try {
                 const data = this.getValue(true);
+                console.log('[Debug] Retrieved data for table view:', {
+                    isArray: Array.isArray(data),
+                    length: Array.isArray(data) ? data.length : 'N/A',
+                    firstItem: data?.[0]
+                });
                 if (Array.isArray(data)) {
                     this.displayTable(data);
                 }
@@ -228,49 +233,18 @@ class JsonTableEditor extends JsonEditor {
                 this.tableContainer.style.cssText = 'display: none !important;';
             }
         } else {
+            console.log('[Debug] Switching to JSON view - Setting display states');
+            // Switch to JSON view
             this.editorWrapper.style.cssText = 'display: block !important;';
             this.tableContainer.style.cssText = 'display: none !important;';
+            this.tableContainer.innerHTML = ''; // Clear table content
         }
 
-        // Force a DOM reflow to ensure styles are applied
-        void this.editorWrapper.offsetHeight;
-        void this.tableContainer.offsetHeight;
-        
-        // Update display and verify the change
-        this.updateDisplay();
-        
-        // Verify the toggle worked as expected
-        const newState = this.debugDOMState();
-        console.log('[Debug] View toggle complete - New state:', newState);
-        
-        // Validate the toggle was successful
-        const expectedEditorDisplay = this.viewMode === 'json' ? 'block' : 'none';
-        const expectedTableDisplay = this.viewMode === 'table' ? 'block' : 'none';
-        
-        const actualEditorDisplay = window.getComputedStyle(this.editorWrapper).display;
-        const actualTableDisplay = window.getComputedStyle(this.tableContainer).display;
-        
-        if (actualEditorDisplay !== expectedEditorDisplay ||
-            actualTableDisplay !== expectedTableDisplay) {
-            console.error('[Debug] View toggle resulted in unexpected display state:', {
-                editorWrapper: {
-                    expected: expectedEditorDisplay,
-                    actual: actualEditorDisplay,
-                    element: this.editorWrapper
-                },
-                tableContainer: {
-                    expected: expectedTableDisplay,
-                    actual: actualTableDisplay,
-                    element: this.tableContainer
-                }
-            });
-
-            // Force correct display state if mismatch detected
-            requestAnimationFrame(() => {
-                this.editorWrapper.style.cssText = `display: ${expectedEditorDisplay} !important;`;
-                this.tableContainer.style.cssText = `display: ${expectedTableDisplay} !important;`;
-            });
-        }
+        // Update display after toggle
+        requestAnimationFrame(() => {
+            console.log('[Debug] Updating display after view toggle');
+            this.updateDisplay();
+        });
     }
 
     /**
@@ -641,6 +615,9 @@ class JsonTableEditor extends JsonEditor {
             const row = document.createElement('tr');
             row.style.backgroundColor = index % 2 === 0 ? '#f8f9fa' : 'white';
             
+            // Add double-click handler to open form editor
+            row.addEventListener('dblclick', () => this.openFormEditor(item));
+
             // Add checkbox cell as the first column
             const checkboxCell = document.createElement('td');
             checkboxCell.style.padding = '8px';
@@ -690,6 +667,136 @@ class JsonTableEditor extends JsonEditor {
         table.appendChild(tbody);
 
         this.tableContainer.appendChild(table);
+    }
+
+    /**
+     * Open form editor modal for an entity
+     * @param {Object} entity The entity to edit
+     */
+    openFormEditor(entity) {
+        console.log('[Debug] Opening form editor modal for entity:', entity);
+        if (!entity || !entity.id) {
+            console.error('[Debug] Invalid entity for form editor');
+            return;
+        }
+
+        // Create modal container
+        const modal = document.createElement('div');
+        modal.className = 'json-editor-modal';
+        modal.style.position = 'fixed';
+        modal.style.top = '0';
+        modal.style.left = '0';
+        modal.style.width = '100%';
+        modal.style.height = '100%';
+        modal.style.backgroundColor = 'rgba(0, 0, 0, 0.5)';
+        modal.style.display = 'flex';
+        modal.style.justifyContent = 'center';
+        modal.style.alignItems = 'center';
+        modal.style.zIndex = '9999';
+
+        // Create modal content
+        const modalContent = document.createElement('div');
+        modalContent.className = 'json-editor-modal-content';
+        modalContent.style.backgroundColor = 'white';
+        modalContent.style.padding = '20px';
+        modalContent.style.borderRadius = '8px';
+        modalContent.style.boxShadow = '0 2px 10px rgba(0, 0, 0, 0.1)';
+        modalContent.style.width = '80%';
+        modalContent.style.maxWidth = '1200px';
+        modalContent.style.height = '80vh'; // Set a fixed height using viewport height
+        modalContent.style.minHeight = '500px'; // Set a minimum height
+        modalContent.style.display = 'flex';
+        modalContent.style.flexDirection = 'column';
+        modalContent.style.position = 'relative';
+
+        // Add close button
+        const closeButton = document.createElement('button');
+        closeButton.innerHTML = '✕';
+        closeButton.style.position = 'absolute';
+        closeButton.style.right = '10px';
+        closeButton.style.top = '10px';
+        closeButton.style.border = 'none';
+        closeButton.style.background = 'none';
+        closeButton.style.fontSize = '20px';
+        closeButton.style.cursor = 'pointer';
+        closeButton.style.color = '#666';
+        closeButton.onclick = () => modal.remove();
+        modalContent.appendChild(closeButton);
+
+        // Create form editor container with full remaining height
+        const editorContainer = document.createElement('div');
+        const editorId = `form-editor-${Date.now()}`;
+        editorContainer.id = editorId;
+        editorContainer.style.flexGrow = '1'; // Take up remaining space
+        editorContainer.style.minHeight = '0'; // Allow container to shrink
+        editorContainer.style.marginTop = '20px';
+        modalContent.appendChild(editorContainer);
+
+        // Add modal to DOM
+        modal.appendChild(modalContent);
+        document.body.appendChild(modal);
+
+        // Initialize JsonFormEditor after ensuring container is in DOM
+        requestAnimationFrame(() => {
+            if (window.currentFormEditor) {
+                console.log('[Debug] Cleaning up existing form editor instance');
+                window.currentFormEditor.destroy?.();
+            }
+
+            console.log('[Debug] Creating new form editor instance with config:', {
+                containerId: editorId,
+                schemaUrl: this.schema?.url || '/js/schemas/entity.json'
+            });
+
+            const formEditor = new JsonFormEditor({
+                containerId: editorId,
+                initialValue: JSON.stringify(entity, null, 2),
+                height: '100%', // Use full height of container
+                formConfig: {
+                    schemaUrl: this.schema?.url || '/js/schemas/entity.json',
+                    autoValidate: true,
+                    reuseDom: true
+                }
+            });
+
+            window.currentFormEditor = formEditor;
+            console.log('[Debug] Form editor initialized and stored in window.currentFormEditor');
+
+            formEditor.onSave = async (updatedData) => {
+                console.log('[Debug] Form editor save handler called with data:', updatedData);
+                try {
+                    const client = new OrionLDClient();
+                    await client.replaceEntity(entity.id, updatedData);
+                    console.log('[Debug] Entity updated successfully');
+                    modal.remove();
+                    this.updateDisplay();
+                    this.showValidationMessage('Entity updated successfully', true);
+                } catch (error) {
+                    console.error('[Debug] Error updating entity:', error);
+                    this.showValidationMessage(`Error updating entity: ${error.message}`, false);
+                }
+            };
+        });
+
+        // Handle escape key to close modal and cleanup
+        const handleEscape = (e) => {
+            if (e.key === 'Escape') {
+                modal.remove();
+                window.currentFormEditor?.destroy?.();
+                window.currentFormEditor = null;
+                document.removeEventListener('keydown', handleEscape);
+            }
+        };
+        document.addEventListener('keydown', handleEscape);
+
+        // Handle click outside modal to close and cleanup
+        modal.addEventListener('click', (e) => {
+            if (e.target === modal) {
+                modal.remove();
+                window.currentFormEditor?.destroy?.();
+                window.currentFormEditor = null;
+            }
+        });
     }
 
     /**

@@ -1,0 +1,212 @@
+.json-form-container {
+    padding: 16px;
+    overflow-y: auto;
+    height: 100%;
+}
+
+.json-form-field {
+    margin-bottom: 24px;
+    position: relative;
+}
+
+.json-form-field label {
+    display: block;
+    margin-bottom: 4px;
+    font-weight: 500;
+    color: #333;
+}
+
+.json-form-field label.required::after {
+    content: '*';
+    color: #d32f2f;
+    margin-left: 4px;
+}
+
+.json-form-input,
+.json-form-select {
+    width: 100%;
+    padding: 8px;
+    border: 1px solid #ccc;
+    border-radius: 4px;
+    font-size: 14px;
+    line-height: 1.5;
+    transition: border-color 0.2s ease;
+}
+
+.json-form-input:focus,
+.json-form-select:focus {
+    outline: none;
+    border-color: #2196f3;
+    box-shadow: 0 0 0 2px rgba(33, 150, 243, 0.1);
+}
+
+.json-form-input.is-invalid,
+.json-form-select.is-invalid {
+    border-color: #d32f2f;
+}
+
+.json-form-checkbox {
+    margin-right: 8px;
+}
+
+.json-form-error {
+    color: #d32f2f;
+    font-size: 12px;
+    margin-top: 4px;
+    position: absolute;
+    bottom: -20px;
+}
+
+.json-form-array {
+    padding: 12px;
+    border: 1px solid #e0e0e0;
+    border-radius: 4px;
+    margin-top: 4px;
+}
+
+.json-form-array-item {
+    position: relative;
+    margin-bottom: 16px;
+}
+
+.json-form-array-add {
+    background-color: #2196f3;
+    color: white;
+    border: none;
+    padding: 6px 12px;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 14px;
+    transition: background-color 0.2s ease;
+}
+
+.json-form-array-add:hover {
+    background-color: #1976d2;
+}
+
+.json-form-array-remove {
+    background-color: #f44336;
+    color: white;
+    border: none;
+    padding: 6px 12px;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 14px;
+    transition: background-color 0.2s ease;
+    min-width: 32px;
+    height: 32px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.json-form-array-remove:hover {
+    background-color: #d32f2f;
+}
+
+.json-form-object {
+    padding: 8px;
+    border: 1px solid #e0e0e0;
+    border-radius: 4px;
+    margin-top: 4px;
+}
+
+.json-editor-modal {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background-color: rgba(0, 0, 0, 0.5);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    z-index: 9999;
+}
+
+.json-editor-modal-content {
+    background-color: white;
+    padding: 20px;
+    border-radius: 8px;
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+    width: 80%;
+    max-width: 1200px;
+    max-height: 90vh;
+    overflow: auto;
+    position: relative;
+}
+
+.json-form-property,
+.json-form-relationship,
+.json-form-geoproperty {
+    padding: 8px;
+    border: 1px solid #e0e0e0;
+    border-radius: 4px;
+    background-color: #f8f9fa;
+}
+
+.json-form-property .json-form-input,
+.json-form-relationship .json-form-input,
+.json-form-geoproperty .json-form-input {
+    margin-bottom: 8px;
+}
+
+.json-form-property .json-form-input:last-child,
+.json-form-relationship .json-form-input:last-child,
+.json-form-geoproperty .json-form-input:last-child {
+    margin-bottom: 0;
+}
+
+/* Dark theme support */
+@media (prefers-color-scheme: dark) {
+    .json-form-field label {
+        color: #e0e0e0;
+    }
+    
+    .json-form-input,
+    .json-form-select {
+        background-color: #1e1e1e;
+        border-color: #404040;
+        color: #e0e0e0;
+    }
+    
+    .json-form-input:focus,
+    .json-form-select:focus {
+        border-color: #2196f3;
+    }
+    
+    .json-form-array,
+    .json-form-object {
+        border-color: #404040;
+        background-color: rgba(255, 255, 255, 0.05);
+    }
+    
+    .json-form-array-remove {
+        background-color: #d32f2f;
+    }
+    
+    .json-form-array-remove:hover {
+        background-color: #b71c1c;
+    }
+
+    .json-editor-modal-content {
+        background-color: #1e1e1e;
+        color: #e0e0e0;
+    }
+    
+    .json-editor-modal-content .json-editor-textarea {
+        background-color: #2d2d2d;
+        color: #e0e0e0;
+    }
+    
+    .json-editor-modal-content button {
+        color: #e0e0e0;
+    }
+
+    .json-form-property,
+    .json-form-relationship,
+    .json-form-geoproperty {
+        border-color: #404040;
+        background-color: #2d2d2d;
+    }
+}

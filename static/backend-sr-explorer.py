@@ -1,6 +1,6 @@
 import os
 import requests
-from flask import Flask, request, redirect, jsonify, session, make_response
+from flask import Flask, request, redirect, jsonify, session, make_response, send_from_directory
 from flask_cors import CORS
 from urllib.parse import urlencode
 import logging
@@ -70,6 +70,11 @@ KEYCLOAK_CONFIG = {
 @app.route('/<path:path>')
 def serve_static(path):
     return app.send_static_file(path)
+
+@app.route('/api/schemas/<path:filename>')
+def serve_schema(filename):
+    """Serve JSON schema files from the js/schemas directory"""
+    return send_from_directory('js/schemas', filename)
 
 # Routes for authentication
 @app.route('/api/auth/login')
